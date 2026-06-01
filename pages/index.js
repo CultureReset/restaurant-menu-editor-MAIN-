@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import styles from '../styles/Home.module.css';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://gcr-api-clean.vercel.app';
 
 export default function MenuEditor() {
   const router = useRouter();
@@ -272,6 +272,7 @@ export default function MenuEditor() {
                 name: 'Main Restaurant',
                 menu_sections: menuData.menu_sections || [],
                 drink_sections: menuData.drink_sections || [],
+                happy_hour_sections: menuData.happy_hour_sections || [],
                 specials: menuData.specials || [],
                 events: menuData.events || [],
                 hours: {}
@@ -292,6 +293,8 @@ export default function MenuEditor() {
               setSelectedAreaId(newAreaId);
             }
 
+            if (menuData.sides) setSides(menuData.sides);
+            if (menuData.daily_features) setDailyFeatures(menuData.daily_features);
             if (menuData.photos) setGallery(menuData.photos);
           }
 
