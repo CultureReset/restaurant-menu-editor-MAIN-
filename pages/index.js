@@ -14,6 +14,7 @@ export default function MenuEditor() {
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null); // { done: 0, total: 0 }
 
   // AI Chat state
   const [aiInput, setAiInput] = useState('');
@@ -1507,36 +1508,41 @@ export default function MenuEditor() {
               <>
                 <h2>Gallery</h2>
                 <div style={{marginBottom: 20}}>
-                  <button onClick={() => galleryInputRef.current?.click()} disabled={uploadingImage} style={{width: '100%', padding: 12, background: uploadingImage ? '#64748b' : '#0b7a75', color: 'white', border: 'none', borderRadius: 8, cursor: uploadingImage ? 'not-allowed' : 'pointer', fontWeight: 600}}>
-                    {uploadingImage ? 'Uploading...' : '📤 Upload Image'}
-                  </button>
-                  <input ref={galleryInputRef} type="file" accept="image/*" onChange={async (e) => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-                    setUploadingImage(true);
-                    try {
-                      const formData = new FormData();
-                      formData.append('image', file);
-                      formData.append('type', 'gallery');
-                      const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/upload`, {
-                        method: 'POST',
-                        headers: { 'x-menu-token': token },
-                        body: formData,
-                      });
-                      const data = await res.json();
-                      if (data.url) {
-                        const newImg = { id: Math.random().toString(36).substr(2, 9), url: data.url, type: 'Business', label: '' };
-                        setGallery(prev => [...prev, newImg]);
-                      } else {
-                        alert('Upload failed: ' + (data.error || 'Unknown error'));
+                  <label style={{display: 'block', width: '100%', padding: 12, background: uploadingImage ? '#64748b' : '#0b7a75', color: 'white', border: 'none', borderRadius: 8, cursor: uploadingImage ? 'not-allowed' : 'pointer', fontWeight: 600, textAlign: 'center', boxSizing: 'border-box'}}>
+                    {uploadProgress ? `Uploading ${uploadProgress.done} / ${uploadProgress.total}...` : '📤 Upload Images (select multiple)'}
+                    <input ref={galleryInputRef} type="file" accept="image/*" multiple disabled={uploadingImage} onChange={async (e) => {
+                      const files = Array.from(e.target.files);
+                      if (!files.length) return;
+                      setUploadingImage(true);
+                      setUploadProgress({ done: 0, total: files.length });
+                      const errors = [];
+                      for (let i = 0; i < files.length; i++) {
+                        try {
+                          const formData = new FormData();
+                          formData.append('image', files[i]);
+                          formData.append('type', 'gallery');
+                          const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/upload`, {
+                            method: 'POST',
+                            headers: { 'x-menu-token': token },
+                            body: formData,
+                          });
+                          const data = await res.json();
+                          if (data.url) {
+                            setGallery(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), url: data.url, type: 'Business', label: '' }]);
+                          } else {
+                            errors.push(files[i].name + ': ' + (data.error || 'failed'));
+                          }
+                        } catch (err) {
+                          errors.push(files[i].name + ': ' + err.message);
+                        }
+                        setUploadProgress({ done: i + 1, total: files.length });
                       }
-                    } catch (err) {
-                      alert('Upload error: ' + err.message);
-                    } finally {
                       setUploadingImage(false);
+                      setUploadProgress(null);
                       e.target.value = '';
-                    }
-                  }} style={{display: 'none'}} />
+                      if (errors.length) alert('Some uploads failed:\n' + errors.join('\n'));
+                    }} style={{display: 'none'}} />
+                  </label>
                 </div>
 
                 {['Hero', 'Business', 'Trip Swipe'].map(type => (
