@@ -267,15 +267,27 @@ export default function MenuEditor() {
             // Create an area with the menu data
             if (menuData.menu_sections || menuData.drink_sections || menuData.hours) {
               const newAreaId = Math.random().toString(36).substr(2, 9);
+
+              const normalizeSections = (sections) => (sections || []).map(s => ({
+                ...s,
+                name: s.name || s.section_name || '',
+                items: (s.items || []).map(i => ({
+                  ...i,
+                  name: i.name || i.item_name || '',
+                  price: i.price != null ? String(i.price) : '',
+                }))
+              }));
+
               const areaData = {
                 id: newAreaId,
                 name: 'Main Restaurant',
-                menu_sections: menuData.menu_sections || [],
-                drink_sections: menuData.drink_sections || [],
-                happy_hour_sections: menuData.happy_hour_sections || [],
-                specials: menuData.specials || [],
-                events: menuData.events || [],
-                hours: {}
+                menu_sections: normalizeSections(menuData.menu_sections),
+                drink_sections: normalizeSections(menuData.drink_sections),
+                happy_hour_sections: normalizeSections(menuData.happy_hour_sections),
+                specials: (menuData.specials || []).map(s => ({ ...s, name: s.name || s.special_name || '', price: s.price != null ? String(s.price) : '' })),
+                events: (menuData.events || []).map(e => ({ ...e, name: e.name || e.event_name || '' })),
+                hours: {},
+                rotating_items: []
               };
 
               // Convert hours array to object
@@ -293,9 +305,10 @@ export default function MenuEditor() {
               setSelectedAreaId(newAreaId);
             }
 
-            if (menuData.sides) setSides(menuData.sides);
-            if (menuData.daily_features) setDailyFeatures(menuData.daily_features);
-            if (menuData.photos) setGallery(menuData.photos);
+            if (menuData.sides) setSides(menuData.sides.map(s => ({ ...s, name: s.name || s.side_name || '', price: s.price != null ? String(s.price) : '' })));
+            if (menuData.daily_features) setDailyFeatures(menuData.daily_features.map(f => ({ ...f, name: f.name || f.feature_name || '', price: f.price != null ? String(f.price) : '' })));
+            const photos = menuData.entity_photos || menuData.photos || [];
+            if (photos.length > 0) setGallery(photos.map(p => ({ id: p.id || Math.random().toString(36).substr(2,9), url: p.url, type: p.is_cover ? 'Hero' : 'Business', label: p.caption || '' })));
           }
 
           // Now show the editor
@@ -1459,10 +1472,21 @@ export default function MenuEditor() {
               <>
                 <h2>Gallery</h2>
                 <div style={{marginBottom: 20}}>
-                  <button onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} style={{width: '100%', padding: 12, background: uploadingImage ? '#64748b' : '#0b7a75', color: 'white', border: 'none', borderRadius: 8, cursor: uploadingImage ? 'not-allowed' : 'pointer', fontWeight: 600}}>
+                  <button onClick={() => galleryInputRef.current?.click()} disabled={uploadingImage} style={{width: '100%', padding: 12, background: uploadingImage ? '#64748b' : '#0b7a75', color: 'white', border: 'none', borderRadius: 8, cursor: uploadingImage ? 'not-allowed' : 'pointer', fontWeight: 600}}>
                     {uploadingImage ? 'Uploading...' : '📤 Upload Image'}
                   </button>
-                  <input ref={fileInputRef} type="file" accept="image/*" onChange={(e) => { if (e.target.files[0]) { setUploadingImage(true); handleImageUpload(e).finally(() => setUploadingImage(false)); } }} style={{display: 'none'}} />
+                  <input ref={galleryInputRef} type="file" accept="image/*" onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    setUploadingImage(true);
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                      const newImg = { id: Math.random().toString(36).substr(2, 9), url: evt.target.result, type: 'Business', label: '' };
+                      setGallery(prev => [...prev, newImg]);
+                      setUploadingImage(false);
+                    };
+                    reader.readAsDataURL(file);
+                  }} style={{display: 'none'}} />
                 </div>
 
                 {['Hero', 'Business', 'Trip Swipe'].map(type => (
