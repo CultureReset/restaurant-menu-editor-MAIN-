@@ -239,7 +239,7 @@ export default function MenuEditor() {
       });
 
       const data = await res.json();
-      if (data.success && data.token) {
+      if (data.token) {
         setToken(data.token);
         setMode('editor');
         setPinEntered(true);
@@ -330,27 +330,64 @@ export default function MenuEditor() {
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    e.target.value = '';
 
     try {
       setUploadingImage(true);
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('type', 'gallery');
+      formData.append('label', imageLabel);
+      const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/upload`, {
+        method: 'POST',
+        headers: { 'x-menu-token': token },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!data.url) throw new Error(data.error || 'Upload failed');
 
-      // Convert to Base64 (local storage for testing)
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target.result;
-        const newImage = { url: base64, label: imageLabel };
+      const newImage = { url: data.url, label: imageLabel };
+      // Add to gallery so it's available for other items too
+      setGallery(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), url: data.url, type: 'Business', label: imageLabel }]);
 
-        if (editingItem) {
-          setEditingItem({ ...editingItem, images: [...(editingItem.images || []), newImage] });
-        } else {
-          setNewItem({ ...newItem, images: [...newItem.images, newImage] });
-        }
-        setImageLabel('Grilled');
-        setUploadingImage(false);
-      };
-      reader.readAsDataURL(file);
+      if (editingItem) {
+        setEditingItem({ ...editingItem, images: [...(editingItem.images || []), newImage] });
+      } else {
+        setNewItem({ ...newItem, images: [...(newItem.images || []), newImage] });
+      }
+      setImageLabel('Grilled');
     } catch (err) {
       alert('Error uploading image: ' + err.message);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // Upload a file to Supabase via API, add to gallery, and attach to an item in areas
+  const uploadAndAttachImage = async (file, areaField, sectionId, itemId) => {
+    try {
+      setUploadingImage(true);
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('type', 'gallery');
+      const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/upload`, {
+        method: 'POST',
+        headers: { 'x-menu-token': token },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!data.url) throw new Error(data.error || 'Upload failed');
+      const newImg = { url: data.url, label: 'Photo' };
+      setGallery(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), url: data.url, type: 'Business', label: '' }]);
+      setAreas(areas.map(a => a.id === selectedAreaId
+        ? { ...a, [areaField]: a[areaField].map(s => s.id === sectionId
+          ? { ...s, items: s.items.map(i => i.id === itemId ? { ...i, images: [...(i.images || []), newImg] } : i) }
+          : s) }
+        : a));
+      setShowGallerySelector(null);
+    } catch (err) {
+      alert('Upload error: ' + err.message);
+    } finally {
       setUploadingImage(false);
     }
   };
@@ -467,9 +504,9 @@ export default function MenuEditor() {
 
   const deleteImage = (imageIndex, isEditing = false) => {
     if (isEditing) {
-      setEditingItem({ ...editingItem, images: editingItem.images.filter((_, i) => i !== imageIndex) });
+      setEditingItem({ ...editingItem, images: (editingItem.images || []).filter((_, i) => i !== imageIndex) });
     } else {
-      setNewItem({ ...newItem, images: newItem.images.filter((_, i) => i !== imageIndex) });
+      setNewItem({ ...newItem, images: (newItem.images || []).filter((_, i) => i !== imageIndex) });
     }
   };
 
@@ -629,7 +666,7 @@ export default function MenuEditor() {
       </button>
       <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display: 'none'}} />
       <div style={{display: 'flex', gap: 8, marginBottom: 8}}>
-        {(editingItem ? editingItem.images : newItem.images).map((img, idx) => (
+        {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
           <div key={idx} style={{position: 'relative', width: 60, height: 60}}>
             <img src={img.url} alt="preview" style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4}} />
             <div style={{fontSize: 10, color: '#94a3b8', marginTop: 2}}>{img.label}</div>
@@ -998,8 +1035,7 @@ export default function MenuEditor() {
                               <div style={{background: '#1e293b', padding: 12, borderRadius: 6, marginTop: 8}}>
                                 <h5 style={{margin: '0 0 12px 0'}}>Add Photo</h5>
                                 <div style={{display: 'flex', gap: 8, marginBottom: 12}}>
-                                  <button onClick={() => galleryInputRef.current?.click()} style={{flex: 1, padding: 8, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12}}>📤 Upload New</button>
-                                  <input ref={galleryInputRef} type="file" accept="image/*" onChange={(e) => { if (e.target.files[0]) { const file = e.target.files[0]; const reader = new FileReader(); reader.onload = (evt) => { const newImg = { url: evt.target.result, label: 'Grilled' }; setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, menu_sections: a.menu_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => i.id === item.id ? { ...i, images: [...(i.images || []), newImg] } : i) } : s) } : a)); setShowGallerySelector(null); }; reader.readAsDataURL(file); } }} style={{display: 'none'}} />
+                                  <label style={{flex: 1, padding: 8, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, textAlign: 'center'}}>📤 Upload New<input type="file" accept="image/*" style={{display:'none'}} onChange={(e) => { if (e.target.files[0]) uploadAndAttachImage(e.target.files[0], 'menu_sections', section.id, item.id); e.target.value=''; }} /></label>
                                 </div>
                                 {gallery.length > 0 && (
                                   <>
@@ -1115,8 +1151,7 @@ export default function MenuEditor() {
                               <div style={{background: '#1e293b', padding: 12, borderRadius: 6, marginTop: 8}}>
                                 <h5 style={{margin: '0 0 12px 0'}}>Add Photo</h5>
                                 <div style={{display: 'flex', gap: 8, marginBottom: 12}}>
-                                  <button onClick={() => galleryInputRef.current?.click()} style={{flex: 1, padding: 8, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12}}>📤 Upload New</button>
-                                  <input ref={galleryInputRef} type="file" accept="image/*" onChange={(e) => { if (e.target.files[0]) { const file = e.target.files[0]; const reader = new FileReader(); reader.onload = (evt) => { const newImg = { url: evt.target.result, label: 'Grilled' }; setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, drink_sections: a.drink_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => i.id === item.id ? { ...i, images: [...(i.images || []), newImg] } : i) } : s) } : a)); setShowGallerySelector(null); }; reader.readAsDataURL(file); } }} style={{display: 'none'}} />
+                                  <label style={{flex: 1, padding: 8, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, textAlign: 'center'}}>📤 Upload New<input type="file" accept="image/*" style={{display:'none'}} onChange={(e) => { if (e.target.files[0]) uploadAndAttachImage(e.target.files[0], 'drink_sections', section.id, item.id); e.target.value=''; }} /></label>
                                 </div>
                                 {gallery.length > 0 && (
                                   <>
@@ -1160,7 +1195,7 @@ export default function MenuEditor() {
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
                     <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display: 'none'}} />
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
-                      {(editingItem ? editingItem.images : newItem.images).map((img, idx) => (
+                      {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
                           <img src={img.url} alt="preview" style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4}} />
                           <button onClick={() => deleteImage(idx, !!editingItem)} style={{position: 'absolute', top: -4, right: -4, background: '#dc2626', color: 'white', border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 10}}>✕</button>
@@ -1210,7 +1245,7 @@ export default function MenuEditor() {
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
                     <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display: 'none'}} />
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
-                      {(editingItem ? editingItem.images : newItem.images).map((img, idx) => (
+                      {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
                           <img src={img.url} alt="preview" style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4}} />
                           <button onClick={() => deleteImage(idx, !!editingItem)} style={{position: 'absolute', top: -4, right: -4, background: '#dc2626', color: 'white', border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 10}}>✕</button>
@@ -1320,7 +1355,7 @@ export default function MenuEditor() {
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
                     <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display: 'none'}} />
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
-                      {(editingItem ? editingItem.images : newItem.images).map((img, idx) => (
+                      {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
                           <img src={img.url} alt="preview" style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4}} />
                           <button onClick={() => deleteImage(idx, !!editingItem)} style={{position: 'absolute', top: -4, right: -4, background: '#dc2626', color: 'white', border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 10}}>✕</button>
@@ -1380,7 +1415,7 @@ export default function MenuEditor() {
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
                     <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display: 'none'}} />
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
-                      {(editingItem ? editingItem.images : newItem.images).map((img, idx) => (
+                      {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
                           <img src={img.url} alt="preview" style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4}} />
                           <button onClick={() => deleteImage(idx, !!editingItem)} style={{position: 'absolute', top: -4, right: -4, background: '#dc2626', color: 'white', border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 10}}>✕</button>
@@ -1440,7 +1475,7 @@ export default function MenuEditor() {
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
                     <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display: 'none'}} />
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
-                      {(editingItem ? editingItem.images : newItem.images).map((img, idx) => (
+                      {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
                           <img src={img.url} alt="preview" style={{width: '100%', height: '100%', objectFit: 'cover', borderRadius: 4}} />
                           <button onClick={() => deleteImage(idx, !!editingItem)} style={{position: 'absolute', top: -4, right: -4, background: '#dc2626', color: 'white', border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 10}}>✕</button>
@@ -1475,17 +1510,32 @@ export default function MenuEditor() {
                   <button onClick={() => galleryInputRef.current?.click()} disabled={uploadingImage} style={{width: '100%', padding: 12, background: uploadingImage ? '#64748b' : '#0b7a75', color: 'white', border: 'none', borderRadius: 8, cursor: uploadingImage ? 'not-allowed' : 'pointer', fontWeight: 600}}>
                     {uploadingImage ? 'Uploading...' : '📤 Upload Image'}
                   </button>
-                  <input ref={galleryInputRef} type="file" accept="image/*" onChange={(e) => {
+                  <input ref={galleryInputRef} type="file" accept="image/*" onChange={async (e) => {
                     const file = e.target.files[0];
                     if (!file) return;
                     setUploadingImage(true);
-                    const reader = new FileReader();
-                    reader.onload = (evt) => {
-                      const newImg = { id: Math.random().toString(36).substr(2, 9), url: evt.target.result, type: 'Business', label: '' };
-                      setGallery(prev => [...prev, newImg]);
+                    try {
+                      const formData = new FormData();
+                      formData.append('image', file);
+                      formData.append('type', 'gallery');
+                      const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/upload`, {
+                        method: 'POST',
+                        headers: { 'x-menu-token': token },
+                        body: formData,
+                      });
+                      const data = await res.json();
+                      if (data.url) {
+                        const newImg = { id: Math.random().toString(36).substr(2, 9), url: data.url, type: 'Business', label: '' };
+                        setGallery(prev => [...prev, newImg]);
+                      } else {
+                        alert('Upload failed: ' + (data.error || 'Unknown error'));
+                      }
+                    } catch (err) {
+                      alert('Upload error: ' + err.message);
+                    } finally {
                       setUploadingImage(false);
-                    };
-                    reader.readAsDataURL(file);
+                      e.target.value = '';
+                    }
                   }} style={{display: 'none'}} />
                 </div>
 
