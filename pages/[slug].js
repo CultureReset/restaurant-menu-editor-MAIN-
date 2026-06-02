@@ -1,1 +1,5 @@
-export { default } from './index';
+import MenuEditor from './index';
+
+export default function SlugPage() {
+  return <MenuEditor />;
+}
