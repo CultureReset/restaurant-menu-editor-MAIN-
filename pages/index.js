@@ -306,6 +306,22 @@ export default function MenuEditor() {
               setSelectedAreaId(newAreaId);
             }
 
+            // Load happy hour items into flat state
+            if (menuData.happy_hour_sections && menuData.happy_hour_sections.length > 0) {
+              const hhItems = menuData.happy_hour_sections.flatMap(s =>
+                (s.items || []).map(i => ({
+                  ...i,
+                  id: i.id || Math.random().toString(36).substr(2, 9),
+                  name: i.name || i.item_name || '',
+                  price: i.price != null ? String(i.price) : '',
+                  section: s.section_name || s.name || '',
+                  active: i.active !== false,
+                  images: i.images || []
+                }))
+              );
+              setHappyHour(hhItems);
+            }
+
             if (menuData.sides) setSides(menuData.sides.map(s => ({ ...s, name: s.name || s.side_name || '', price: s.price != null ? String(s.price) : '' })));
             if (menuData.daily_features) setDailyFeatures(menuData.daily_features.map(f => ({ ...f, name: f.name || f.feature_name || '', price: f.price != null ? String(f.price) : '' })));
             const photos = menuData.entity_photos || menuData.photos || [];
@@ -328,33 +344,58 @@ export default function MenuEditor() {
     }
   };
 
+  const convertToJpeg = (file) => new Promise((resolve) => {
+    const supported = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (supported.includes(file.type)) { resolve(file); return; }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((blob) => {
+        resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+      }, 'image/jpeg', 0.92);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+
+  const uploadSingleImage = async (file) => {
+    const converted = await convertToJpeg(file);
+    const formData = new FormData();
+    formData.append('image', converted);
+    formData.append('type', 'gallery');
+    formData.append('label', imageLabel);
+    const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/upload`, {
+      method: 'POST',
+      headers: { 'x-menu-token': token },
+      body: formData,
+    });
+    const data = await res.json();
+    if (!data.url) throw new Error(data.error || 'Upload failed');
+    return data.url;
+  };
+
   const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     e.target.value = '';
 
     try {
       setUploadingImage(true);
-      const formData = new FormData();
-      formData.append('image', file);
-      formData.append('type', 'gallery');
-      formData.append('label', imageLabel);
-      const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/upload`, {
-        method: 'POST',
-        headers: { 'x-menu-token': token },
-        body: formData,
-      });
-      const data = await res.json();
-      if (!data.url) throw new Error(data.error || 'Upload failed');
-
-      const newImage = { url: data.url, label: imageLabel };
-      // Add to gallery so it's available for other items too
-      setGallery(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), url: data.url, type: 'Business', label: imageLabel }]);
-
+      const uploaded = [];
+      for (const file of files) {
+        const url = await uploadSingleImage(file);
+        uploaded.push({ url, label: imageLabel });
+        setGallery(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), url, type: 'Business', label: imageLabel }]);
+      }
       if (editingItem) {
-        setEditingItem({ ...editingItem, images: [...(editingItem.images || []), newImage] });
+        setEditingItem({ ...editingItem, images: [...(editingItem.images || []), ...uploaded] });
       } else {
-        setNewItem({ ...newItem, images: [...(newItem.images || []), newImage] });
+        setNewItem(prev => ({ ...prev, images: [...(prev.images || []), ...uploaded] }));
       }
       setImageLabel('Grilled');
     } catch (err) {
@@ -653,7 +694,7 @@ export default function MenuEditor() {
       <input type="text" placeholder="Item name" value={editingItem ? editingItem.name : newItem.name} onChange={(e) => editingItem ? setEditingItem({...editingItem, name: e.target.value}) : setNewItem({...newItem, name: e.target.value})} style={{width: '100%', padding: 8, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 8}} />
       <textarea placeholder="Description" value={editingItem ? editingItem.description : newItem.description} onChange={(e) => editingItem ? setEditingItem({...editingItem, description: e.target.value}) : setNewItem({...newItem, description: e.target.value})} style={{width: '100%', padding: 8, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 8, height: 60}} />
       {!showDate && !showTime && !showLocation && <input type="text" placeholder="Price" value={editingItem ? editingItem.price : newItem.price} onChange={(e) => editingItem ? setEditingItem({...editingItem, price: e.target.value}) : setNewItem({...newItem, price: e.target.value})} style={{width: '100%', padding: 8, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 8}} />}
-      {showDate && <input type="date" value={editingItem ? editingItem.date : newItem.date} onChange={(e) => editingItem ? setEditingItem({...editingItem, date: e.target.value}) : setNewItem({...newItem, date: e.target.value})} style={{width: '100%', padding: 8, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 8}} />}
+      {showDate && <input type="date" value={(editingItem ? editingItem.date : newItem.date) || ''} onChange={(e) => editingItem ? setEditingItem({...editingItem, date: e.target.value}) : setNewItem({...newItem, date: e.target.value})} style={{width: '100%', padding: 8, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 8}} />}
       {showTime && <input type="time" value={editingItem ? editingItem.time : newItem.time} onChange={(e) => editingItem ? setEditingItem({...editingItem, time: e.target.value}) : setNewItem({...newItem, time: e.target.value})} style={{width: '100%', padding: 8, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 8}} />}
       {showLocation && <input type="text" placeholder="Location" value={editingItem ? editingItem.location : newItem.location} onChange={(e) => editingItem ? setEditingItem({...editingItem, location: e.target.value}) : setNewItem({...newItem, location: e.target.value})} style={{width: '100%', padding: 8, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 8}} />}
       {!isSectionItem && <div style={{display: 'flex', gap: 8, marginBottom: 8}}>
@@ -665,7 +706,7 @@ export default function MenuEditor() {
       <button onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} style={{width: '100%', padding: 8, background: uploadingImage ? '#64748b' : '#1e293b', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: uploadingImage ? 'not-allowed' : 'pointer', marginBottom: 8}}>
         {uploadingImage ? 'Uploading...' : '+ Add Image'}
       </button>
-      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display: 'none'}} />
+      <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{display: 'none'}} />
       <div style={{display: 'flex', gap: 8, marginBottom: 8}}>
         {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
           <div key={idx} style={{position: 'relative', width: 60, height: 60}}>
@@ -1194,7 +1235,7 @@ export default function MenuEditor() {
                       Active
                     </label>
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display: 'none'}} />
+                    <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{display: 'none'}} />
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
                       {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
@@ -1244,7 +1285,7 @@ export default function MenuEditor() {
                     <textarea placeholder="Description" value={editingItem ? editingItem.description : newItem.description} onChange={(e) => editingItem ? setEditingItem({...editingItem, description: e.target.value}) : setNewItem({...newItem, description: e.target.value})} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 10, height: 60}} />
                     <input type="text" placeholder={editingItem?.type === 'addon' || newItem.type === 'addon' ? "Price (e.g. +$1.50)" : "Price (e.g. $3.00)"} value={editingItem ? editingItem.price : newItem.price} onChange={(e) => editingItem ? setEditingItem({...editingItem, price: e.target.value}) : setNewItem({...newItem, price: e.target.value})} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 10}} />
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display: 'none'}} />
+                    <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{display: 'none'}} />
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
                       {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
@@ -1343,7 +1384,7 @@ export default function MenuEditor() {
                     <h4 style={{margin: '0 0 12px 0'}}>{editingItem ? 'Edit Event' : 'Add Event'}</h4>
                     <input type="text" placeholder="Event name" value={editingItem ? editingItem.name : newItem.name} onChange={(e) => editingItem ? setEditingItem({...editingItem, name: e.target.value}) : setNewItem({...newItem, name: e.target.value})} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 10}} />
                     <textarea placeholder="Description" value={editingItem ? editingItem.description : newItem.description} onChange={(e) => editingItem ? setEditingItem({...editingItem, description: e.target.value}) : setNewItem({...newItem, description: e.target.value})} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 10, height: 60}} />
-                    <input type="date" value={editingItem ? editingItem.date : newItem.date} onChange={(e) => editingItem ? setEditingItem({...editingItem, date: e.target.value}) : setNewItem({...newItem, date: e.target.value})} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 10}} />
+                    <input type="date" value={(editingItem ? editingItem.date : newItem.date) || ''} onChange={(e) => editingItem ? setEditingItem({...editingItem, date: e.target.value}) : setNewItem({...newItem, date: e.target.value})} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 10}} />
                     <select value={editingItem ? editingItem.time : newItem.time} onChange={(e) => editingItem ? setEditingItem({...editingItem, time: e.target.value}) : setNewItem({...newItem, time: e.target.value})} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 10}}>
                       <option value="">Select Event Time</option>
                       {timeOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
@@ -1354,7 +1395,7 @@ export default function MenuEditor() {
                       Active
                     </label>
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display: 'none'}} />
+                    <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{display: 'none'}} />
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
                       {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
@@ -1408,13 +1449,13 @@ export default function MenuEditor() {
                         </select>
                       </div>
                     </div>
-                    <input type="text" placeholder="Days (e.g. Mon-Fri)" value={editingItem ? editingItem.date : newItem.date} onChange={(e) => editingItem ? setEditingItem({...editingItem, date: e.target.value}) : setNewItem({...newItem, date: e.target.value})} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 10}} />
+                    <input type="text" placeholder="Days (e.g. Mon-Fri)" value={(editingItem ? editingItem.date : newItem.date) || ''} onChange={(e) => editingItem ? setEditingItem({...editingItem, date: e.target.value}) : setNewItem({...newItem, date: e.target.value})} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 10}} />
                     <label style={{display: 'flex', alignItems: 'center', gap: 8, color: '#f1f5f9', marginBottom: 12}}>
                       <input type="checkbox" checked={editingItem ? editingItem.active : newItem.active} onChange={(e) => editingItem ? setEditingItem({...editingItem, active: e.target.checked}) : setNewItem({...newItem, active: e.target.checked})} />
                       Active
                     </label>
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display: 'none'}} />
+                    <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{display: 'none'}} />
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
                       {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
@@ -1474,7 +1515,7 @@ export default function MenuEditor() {
                       Active
                     </label>
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} style={{display: 'none'}} />
+                    <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{display: 'none'}} />
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
                       {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
