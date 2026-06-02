@@ -1050,9 +1050,21 @@ export default function MenuEditor() {
                     </div>
                   ))}
 
-                  <div style={{display: 'flex', gap: 8, marginTop: 8}}>
-                    <input type="text" value={newRotatingSectionName} onChange={e => setNewRotatingSectionName(e.target.value)} placeholder="Section name (e.g. Beer on Tap, Catch of the Day - Lunch)" style={{flex: 1, padding: 10, background: '#1e293b', color: '#f1f5f9', border: '1px solid #f59e0b', borderRadius: 6, fontSize: 14}} onKeyDown={e => { if (e.key === 'Enter' && newRotatingSectionName.trim()) { setRotatingSections([...rotatingSections, {id: Math.random().toString(36).substr(2,9), name: newRotatingSectionName.trim(), items: []}]); setNewRotatingSectionName(''); setEditingRotatingSection(null); }}} />
-                    <button onClick={() => { if (!newRotatingSectionName.trim()) return; setRotatingSections([...rotatingSections, {id: Math.random().toString(36).substr(2,9), name: newRotatingSectionName.trim(), items: []}]); setNewRotatingSectionName(''); }} style={{padding: '10px 16px', background: '#f59e0b', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700}}>+ Add Section</button>
+                  <div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}>
+                    <input type="text" value={newRotatingSectionName} onChange={e => setNewRotatingSectionName(e.target.value)} placeholder="Section name (e.g. Beer on Tap, Catch of the Day - Lunch)" style={{flex: 1, minWidth: 200, padding: 10, background: '#1e293b', color: '#f1f5f9', border: '1px solid #f59e0b', borderRadius: 6, fontSize: 14}} onKeyDown={e => { if (e.key === 'Enter' && newRotatingSectionName.trim()) { setRotatingSections([...rotatingSections, {id: Math.random().toString(36).substr(2,9), name: newRotatingSectionName.trim(), type: newRotatingSectionName.toLowerCase().match(/beer|wine|drink|cocktail|spirit|tap|keg|brew/) ? 'drinks' : 'food', items: []}]); setNewRotatingSectionName(''); }}} />
+                    <select defaultValue="auto" id="rotating-type-select" style={{padding: 10, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}}>
+                      <option value="auto">Auto-detect</option>
+                      <option value="food">🍽️ Food (Menu tab)</option>
+                      <option value="drinks">🍺 Drinks (Drinks tab)</option>
+                    </select>
+                    <button onClick={() => {
+                      if (!newRotatingSectionName.trim()) return;
+                      const sel = document.getElementById('rotating-type-select');
+                      let type = sel ? sel.value : 'auto';
+                      if (type === 'auto') type = newRotatingSectionName.toLowerCase().match(/beer|wine|drink|cocktail|spirit|tap|keg|brew/) ? 'drinks' : 'food';
+                      setRotatingSections([...rotatingSections, {id: Math.random().toString(36).substr(2,9), name: newRotatingSectionName.trim(), type, items: []}]);
+                      setNewRotatingSectionName('');
+                    }} style={{padding: '10px 16px', background: '#f59e0b', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700}}>+ Add Section</button>
                   </div>
                 </div>
 
@@ -1153,6 +1165,21 @@ export default function MenuEditor() {
             {tab === 'drinks' && (
               <>
                 <h2>Drink Sections</h2>
+
+                {/* Rotating drink sections (Beer on Tap, Wine List, etc.) */}
+                {rotatingSections.filter(s => s.type === 'drinks').length > 0 && (
+                  <div style={{background: '#0f172a', padding: 16, borderRadius: 8, marginBottom: 20, borderLeft: '4px solid #f59e0b'}}>
+                    <h3 style={{margin: '0 0 4px 0', color: '#f59e0b'}}>🔄 ROTATING DRINK SECTIONS</h3>
+                    <p style={{margin: '0 0 12px 0', fontSize: 12, color: '#64748b'}}>Managed from the Menu tab → Rotating Sections</p>
+                    {rotatingSections.filter(s => s.type === 'drinks').map(sec => (
+                      <div key={sec.id} style={{background: '#1e293b', borderRadius: 6, marginBottom: 8, padding: '10px 14px'}}>
+                        <strong style={{color: '#f59e0b'}}>{sec.name}</strong>
+                        <span style={{fontSize: 12, color: '#64748b', marginLeft: 8}}>{sec.items.filter(i => i.active).length} active items</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div style={{display: 'flex', gap: 8, marginBottom: 12}}>
                   <button onClick={() => { setNewSectionName('Happy Hour'); setSectionTimeStart('16:00'); setSectionTimeEnd('19:00'); }} style={{padding: 8, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>🍹 Happy Hour</button>
                   <button onClick={() => { setNewSectionName('Cocktails'); setSectionTimeStart('17:00'); setSectionTimeEnd('23:00'); }} style={{padding: 8, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>🍸 Cocktails</button>
