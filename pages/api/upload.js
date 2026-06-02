@@ -32,7 +32,7 @@ export default async function handler(req, res) {
     formData.append('type', type);
     if (itemId) formData.append('item_id', itemId);
 
-    const API_BASE = process.env.NEXT_PUBLIC_GCR_API || 'https://gcr-api-clean-fresh.vercel.app';
+    const API_BASE = process.env.NEXT_PUBLIC_GCR_API || 'https://gcr-api-clean.vercel.app';
     const uploadRes = await fetch(`${API_BASE}/api/menu-editor/${slug}/upload`, {
       method: 'POST',
       headers: { 'x-menu-token': token },
