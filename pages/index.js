@@ -35,9 +35,13 @@ export default function MenuEditor() {
   const [newAreaName, setNewAreaName] = useState('');
   const [tab, setTab] = useState('menu');
 
-  // Rotating items (Catch of the Day, Soup of the Day, etc)
-  const [showAddRotating, setShowAddRotating] = useState(false);
-  const [rotatingItem, setRotatingItem] = useState({ name: '', description: '', price: '', images: [], active: true });
+  // Rotating sections (Beer on Tap, Catch of the Day, etc)
+  const [rotatingSections, setRotatingSections] = useState([]);
+  const [editingRotatingSection, setEditingRotatingSection] = useState(null);
+  const [newRotatingSectionName, setNewRotatingSectionName] = useState('');
+  const [editingRotatingItem, setEditingRotatingItem] = useState(null);
+  const [newRotatingItem, setNewRotatingItem] = useState({ name: '', description: '', price: '', active: true });
+  const [expandedRotatingSection, setExpandedRotatingSection] = useState(null);
   const [happyHour, setHappyHour] = useState([]);
 
   // Current tab state (reusable across all tabs)
@@ -974,40 +978,82 @@ export default function MenuEditor() {
                 </div>
 
                 <div style={{background: '#0f172a', padding: 16, borderRadius: 8, marginBottom: 20, borderLeft: '4px solid #f59e0b'}}>
-                  <h3 style={{margin: '0 0 12px 0', color: '#f59e0b'}}>🎣 TODAY'S ROTATING ITEMS (Catch of Day, Soup of Day, etc.)</h3>
+                  <h3 style={{margin: '0 0 4px 0', color: '#f59e0b'}}>🔄 ROTATING SECTIONS</h3>
+                  <p style={{margin: '0 0 16px 0', fontSize: 12, color: '#64748b'}}>Beer on Tap, Catch of the Day, Soup of the Day — each as its own named section with items underneath.</p>
 
-                  {selectedArea.rotating_items?.length > 0 && (
-                    <div style={{marginBottom: 16}}>
-                      {selectedArea.rotating_items.map(item => (
-                        <div key={item.id} style={{background: '#1e293b', padding: 12, borderRadius: 6, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: item.active ? 1 : 0.5}}>
-                          <div style={{flex: 1}}>
-                            <h5 style={{margin: '0 0 4px 0'}}>{item.name}</h5>
-                            {item.description && <p style={{margin: '0 0 4px 0', fontSize: 12, color: '#94a3b8'}}>{item.description}</p>}
-                            {item.price && <p style={{margin: 0, fontWeight: 600}}>{item.price}</p>}
+                  {rotatingSections.map(sec => (
+                    <div key={sec.id} style={{background: '#1e293b', borderRadius: 8, marginBottom: 12, overflow: 'hidden'}}>
+                      <div style={{padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                        {editingRotatingSection === sec.id ? (
+                          <div style={{display: 'flex', gap: 8, flex: 1}}>
+                            <input type="text" value={newRotatingSectionName} onChange={e => setNewRotatingSectionName(e.target.value)} style={{flex: 1, padding: '6px 10px', background: '#0f172a', color: '#f1f5f9', border: '1px solid #f59e0b', borderRadius: 6, fontSize: 14}} autoFocus />
+                            <button onClick={() => { setRotatingSections(rotatingSections.map(s => s.id === sec.id ? {...s, name: newRotatingSectionName} : s)); setEditingRotatingSection(null); }} style={{padding: '6px 12px', background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600}}>Save</button>
+                            <button onClick={() => setEditingRotatingSection(null)} style={{padding: '6px 12px', background: '#64748b', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer'}}>Cancel</button>
                           </div>
-                          <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-                            <button onClick={() => toggleRotatingActive(item.id)} style={{padding: '6px 12px', background: item.active ? '#22c55e' : '#64748b', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600}}>{item.active ? '✓ Active' : 'Inactive'}</button>
-                            <button onClick={() => { setRotatingItem(item); setShowAddRotating(true); }} style={{padding: '6px 10px', background: '#0b7a75', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>Edit</button>
-                            <button onClick={() => deleteRotatingItem(item.id)} style={{padding: '6px 10px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>Delete</button>
+                        ) : (
+                          <>
+                            <span style={{fontWeight: 700, fontSize: 15, color: '#f59e0b', cursor: 'pointer'}} onClick={() => setExpandedRotatingSection(expandedRotatingSection === sec.id ? null : sec.id)}>{sec.name} <span style={{fontSize: 12, color: '#64748b'}}>({sec.items.length} items)</span></span>
+                            <div style={{display: 'flex', gap: 6}}>
+                              <button onClick={() => { setEditingRotatingSection(sec.id); setNewRotatingSectionName(sec.name); }} style={{padding: '4px 10px', background: '#334155', color: '#f1f5f9', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>✏️ Rename</button>
+                              <button onClick={() => setExpandedRotatingSection(expandedRotatingSection === sec.id ? null : sec.id)} style={{padding: '4px 10px', background: '#334155', color: '#f1f5f9', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>{expandedRotatingSection === sec.id ? '▲ Hide' : '▼ Edit'}</button>
+                              <button onClick={() => setRotatingSections(rotatingSections.filter(s => s.id !== sec.id))} style={{padding: '4px 10px', background: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>🗑</button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {expandedRotatingSection === sec.id && (
+                        <div style={{padding: '0 16px 16px'}}>
+                          {sec.items.map(item => (
+                            <div key={item.id} style={{background: '#0f172a', padding: 10, borderRadius: 6, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: item.active ? 1 : 0.5}}>
+                              {editingRotatingItem?.id === item.id && editingRotatingItem?.sectionId === sec.id ? (
+                                <div style={{flex: 1}}>
+                                  <input type="text" value={editingRotatingItem.name} onChange={e => setEditingRotatingItem({...editingRotatingItem, name: e.target.value})} placeholder="Name" style={{width: '100%', padding: 7, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 4, marginBottom: 6}} />
+                                  <textarea value={editingRotatingItem.description || ''} onChange={e => setEditingRotatingItem({...editingRotatingItem, description: e.target.value})} placeholder="Description" style={{width: '100%', padding: 7, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 4, marginBottom: 6, height: 50}} />
+                                  <input type="text" value={editingRotatingItem.price || ''} onChange={e => setEditingRotatingItem({...editingRotatingItem, price: e.target.value})} placeholder="Price" style={{width: '100%', padding: 7, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 4, marginBottom: 6}} />
+                                  <div style={{display: 'flex', gap: 6}}>
+                                    <button onClick={() => { setRotatingSections(rotatingSections.map(s => s.id === sec.id ? {...s, items: s.items.map(i => i.id === editingRotatingItem.id ? {...editingRotatingItem} : i)} : s)); setEditingRotatingItem(null); }} style={{flex: 1, padding: 7, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600}}>Save</button>
+                                    <button onClick={() => setEditingRotatingItem(null)} style={{flex: 1, padding: 7, background: '#64748b', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer'}}>Cancel</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div style={{flex: 1}}>
+                                    <strong style={{fontSize: 14}}>{item.name}</strong>
+                                    {item.description && <p style={{margin: '2px 0', fontSize: 12, color: '#94a3b8'}}>{item.description}</p>}
+                                    {item.price && <span style={{fontWeight: 600, color: '#4ade80', fontSize: 13}}>{item.price}</span>}
+                                  </div>
+                                  <div style={{display: 'flex', gap: 6, marginLeft: 8}}>
+                                    <button onClick={() => setRotatingSections(rotatingSections.map(s => s.id === sec.id ? {...s, items: s.items.map(i => i.id === item.id ? {...i, active: !i.active} : i)} : s))} style={{padding: '4px 8px', background: item.active ? '#166534' : '#64748b', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11}}>{item.active ? '✓ On' : 'Off'}</button>
+                                    <button onClick={() => setEditingRotatingItem({...item, sectionId: sec.id})} style={{padding: '4px 8px', background: '#0b7a75', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11}}>Edit</button>
+                                    <button onClick={() => setRotatingSections(rotatingSections.map(s => s.id === sec.id ? {...s, items: s.items.filter(i => i.id !== item.id)} : s))} style={{padding: '4px 8px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11}}>✕</button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          ))}
+
+                          {/* Add item form */}
+                          <div style={{background: '#0f172a', padding: 10, borderRadius: 6, border: '1px dashed rgba(245,158,11,.3)'}}>
+                            <input type="text" value={newRotatingItem.sectionId === sec.id ? newRotatingItem.name : ''} onChange={e => setNewRotatingItem({...newRotatingItem, name: e.target.value, sectionId: sec.id})} onFocus={() => setNewRotatingItem({...newRotatingItem, sectionId: sec.id})} placeholder="Item name (e.g. Grouper, Bud Light)" style={{width: '100%', padding: 7, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 4, marginBottom: 6}} />
+                            <input type="text" value={newRotatingItem.sectionId === sec.id ? newRotatingItem.description || '' : ''} onChange={e => setNewRotatingItem({...newRotatingItem, description: e.target.value, sectionId: sec.id})} onFocus={() => setNewRotatingItem({...newRotatingItem, sectionId: sec.id})} placeholder="Description (optional)" style={{width: '100%', padding: 7, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 4, marginBottom: 6}} />
+                            <input type="text" value={newRotatingItem.sectionId === sec.id ? newRotatingItem.price || '' : ''} onChange={e => setNewRotatingItem({...newRotatingItem, price: e.target.value, sectionId: sec.id})} onFocus={() => setNewRotatingItem({...newRotatingItem, sectionId: sec.id})} placeholder="Price (optional)" style={{width: '100%', padding: 7, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 4, marginBottom: 6}} />
+                            <button onClick={() => {
+                              if (!newRotatingItem.name.trim()) return;
+                              const id = Math.random().toString(36).substr(2, 9);
+                              setRotatingSections(rotatingSections.map(s => s.id === sec.id ? {...s, items: [...s.items, {id, name: newRotatingItem.name, description: newRotatingItem.description || '', price: newRotatingItem.price || '', active: true}]} : s));
+                              setNewRotatingItem({ name: '', description: '', price: '', active: true, sectionId: sec.id });
+                            }} style={{width: '100%', padding: 8, background: '#f59e0b', color: '#000', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600}}>+ Add Item</button>
                           </div>
                         </div>
-                      ))}
+                      )}
                     </div>
-                  )}
+                  ))}
 
-                  {showAddRotating ? (
-                    <div style={{background: '#1e293b', padding: 12, borderRadius: 6}}>
-                      <input type="text" placeholder="Item name (Catch of Day, Soup of Day, etc.)" value={rotatingItem.name} onChange={(e) => setRotatingItem({...rotatingItem, name: e.target.value})} style={{width: '100%', padding: 8, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 4, marginBottom: 8}} />
-                      <textarea placeholder="Description" value={rotatingItem.description} onChange={(e) => setRotatingItem({...rotatingItem, description: e.target.value})} style={{width: '100%', padding: 8, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 4, marginBottom: 8, minHeight: 60}} />
-                      <input type="text" placeholder="Price" value={rotatingItem.price} onChange={(e) => setRotatingItem({...rotatingItem, price: e.target.value})} style={{width: '100%', padding: 8, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 4, marginBottom: 8}} />
-                      <div style={{display: 'flex', gap: 8}}>
-                        <button onClick={addRotatingItem} style={{flex: 1, padding: 8, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600}}>Save Item</button>
-                        <button onClick={() => { setShowAddRotating(false); setRotatingItem({ name: '', description: '', price: '', images: [], active: true }); }} style={{flex: 1, padding: 8, background: '#64748b', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer'}}>Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button onClick={() => setShowAddRotating(true)} style={{width: '100%', padding: 12, background: '#f59e0b', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14}}>+ Add Rotating Item</button>
-                  )}
+                  <div style={{display: 'flex', gap: 8, marginTop: 8}}>
+                    <input type="text" value={newRotatingSectionName} onChange={e => setNewRotatingSectionName(e.target.value)} placeholder="Section name (e.g. Beer on Tap, Catch of the Day - Lunch)" style={{flex: 1, padding: 10, background: '#1e293b', color: '#f1f5f9', border: '1px solid #f59e0b', borderRadius: 6, fontSize: 14}} onKeyDown={e => { if (e.key === 'Enter' && newRotatingSectionName.trim()) { setRotatingSections([...rotatingSections, {id: Math.random().toString(36).substr(2,9), name: newRotatingSectionName.trim(), items: []}]); setNewRotatingSectionName(''); setEditingRotatingSection(null); }}} />
+                    <button onClick={() => { if (!newRotatingSectionName.trim()) return; setRotatingSections([...rotatingSections, {id: Math.random().toString(36).substr(2,9), name: newRotatingSectionName.trim(), items: []}]); setNewRotatingSectionName(''); }} style={{padding: '10px 16px', background: '#f59e0b', color: '#000', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700}}>+ Add Section</button>
+                  </div>
                 </div>
 
                 {selectedArea.menu_sections.map(section => (
