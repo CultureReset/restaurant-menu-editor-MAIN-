@@ -25,6 +25,7 @@ export default function MenuEditor() {
 
   // Business level
   const [business, setBusiness] = useState({ name: '', tagline: '', phone: '', website: '', address: '', about: '' });
+  const [theme, setTheme] = useState({ primary: '#0b7a75', accent: '#f0a500', bg: '#f7f7f7', surface: '#ffffff', text: '#111111' });
   const [gallery, setGallery] = useState([]);
   const [sides, setSides] = useState([]);
   const [dailyFeatures, setDailyFeatures] = useState([]);
@@ -326,8 +327,14 @@ export default function MenuEditor() {
               setHappyHour(hhItems);
             }
 
-            if (menuData.sides) setSides(menuData.sides.map(s => ({ ...s, name: s.name || s.side_name || '', price: s.price != null ? String(s.price) : '' })));
+            if (menuData.sides) setSides(menuData.sides.map(s => ({ ...s, name: s.name || s.side_name || '', price: s.price != null ? String(s.price) : '', type: s.item_type || s.type || 'side' })));
             if (menuData.daily_features) setDailyFeatures(menuData.daily_features.map(f => ({ ...f, name: f.name || f.feature_name || '', price: f.price != null ? String(f.price) : '' })));
+            if (menuData.entity?.rotating_sections && menuData.entity.rotating_sections.length > 0) {
+              setRotatingSections(menuData.entity.rotating_sections);
+            }
+            if (menuData.entity?.theme && Object.keys(menuData.entity.theme).length > 0) {
+              setTheme(prev => ({ ...prev, ...menuData.entity.theme }));
+            }
             const photos = menuData.entity_photos || menuData.photos || [];
             if (photos.length > 0) setGallery(photos.map(p => ({ id: p.id || Math.random().toString(36).substr(2,9), url: p.url, type: p.is_cover ? 'Hero' : 'Business', label: p.caption || '' })));
           }
@@ -612,7 +619,7 @@ export default function MenuEditor() {
     }
     try {
       setSaving(true);
-      const payload = { business, gallery, sides, dailyFeatures, areas };
+      const payload = { business, gallery, sides, dailyFeatures, areas, rotatingSections, theme, happyHour };
       const res = await fetch(`${API_URL}/api/menu-editor/${slug}/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-menu-token': token },
@@ -1692,6 +1699,29 @@ export default function MenuEditor() {
                   <input type="text" placeholder="Website" value={business.website} onChange={(e) => setBusiness({...business, website: e.target.value})} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 12}} />
                   <input type="text" placeholder="Address" value={business.address} onChange={(e) => setBusiness({...business, address: e.target.value})} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 12}} />
                   <textarea placeholder="About / Description" value={business.about} onChange={(e) => setBusiness({...business, about: e.target.value})} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 12, height: 100}} />
+                </div>
+
+                <div style={{background: '#1e293b', padding: 16, borderRadius: 8, marginTop: 16}}>
+                  <h3 style={{margin: '0 0 4px 0', color: '#f1f5f9'}}>🎨 Public Menu Theme</h3>
+                  <p style={{margin: '0 0 16px 0', fontSize: 12, color: '#64748b'}}>Customize the colors of your public-facing menu page.</p>
+                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12}}>
+                    {[
+                      { key: 'primary', label: 'Primary Color' },
+                      { key: 'accent', label: 'Accent / Highlight' },
+                      { key: 'bg', label: 'Page Background' },
+                      { key: 'surface', label: 'Card Color' },
+                      { key: 'text', label: 'Text Color' },
+                    ].map(({ key, label }) => (
+                      <div key={key}>
+                        <label style={{fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 4}}>{label}</label>
+                        <div style={{display: 'flex', gap: 6, alignItems: 'center'}}>
+                          <input type="color" value={theme[key] || '#000000'} onChange={(e) => setTheme(t => ({...t, [key]: e.target.value}))} style={{width: 38, height: 38, border: 'none', borderRadius: 4, cursor: 'pointer', padding: 2, background: '#0f172a'}} />
+                          <input type="text" value={theme[key] || ''} onChange={(e) => setTheme(t => ({...t, [key]: e.target.value}))} style={{flex: 1, padding: '6px 10px', background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, fontSize: 12}} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => setTheme({ primary: '#0b7a75', accent: '#f0a500', bg: '#f7f7f7', surface: '#ffffff', text: '#111111' })} style={{width: '100%', marginTop: 12, padding: 8, background: '#334155', color: '#94a3b8', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12}}>↺ Reset to Default Colors</button>
                 </div>
               </>
             )}
