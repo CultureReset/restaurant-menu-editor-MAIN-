@@ -54,8 +54,25 @@ export default function MenuEditor() {
   const [sectionTimeEnd, setSectionTimeEnd] = useState('22:00');
   const [eventTimeStart, setEventTimeStart] = useState('18:00');
   const [eventTimeEnd, setEventTimeEnd] = useState('22:00');
+  const createBlankItem = () => ({
+    section_id: '',
+    name: '',
+    description: '',
+    price: '',
+    date: '',
+    time: '',
+    location: '',
+    type: 'side',
+    images: [],
+    active: true,
+    available: true,
+    featured: false,
+    catch_of_the_day: false,
+    market_price: false,
+    on_tap: false
+  });
   const [editingItem, setEditingItem] = useState(null);
-  const [newItem, setNewItem] = useState({ section_id: '', name: '', description: '', price: '', date: '', time: '', location: '', type: 'side', images: [], active: true });
+  const [newItem, setNewItem] = useState(createBlankItem());
   const [editingItemId, setEditingItemId] = useState(null);
   const [showGallerySelector, setShowGallerySelector] = useState(null);
   const [expandedAddForm, setExpandedAddForm] = useState(null);
@@ -279,7 +296,7 @@ export default function MenuEditor() {
                 ...s,
                 name: s.name || s.section_name || '',
                 items: (s.items || []).map(i => ({
-                  ...i,
+                  ...withItemDefaults(i),
                   name: i.name || i.item_name || '',
                   price: i.price != null ? String(i.price) : '',
                 }))
@@ -486,9 +503,9 @@ export default function MenuEditor() {
     const section = area?.[field].find(s => s.id === newItem.section_id);
     if (!section) return;
 
-    const item = { id: Math.random().toString(36).substr(2, 9), ...newItem, images: newItem.images || [] };
+    const item = withItemDefaults({ id: Math.random().toString(36).substr(2, 9), ...newItem, images: newItem.images || [] });
     setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, [field]: a[field].map(s => s.id === newItem.section_id ? { ...s, items: [...s.items, item] } : s) } : a));
-    setNewItem({ section_id: '', name: '', description: '', price: '', date: '', time: '', location: '', type: 'side', images: [], active: true });
+    setNewItem(createBlankItem());
   };
 
   const updateSectionItem = (tabType = tab) => {
@@ -512,7 +529,7 @@ export default function MenuEditor() {
       alert('Fill required fields');
       return;
     }
-    const item = { id: Math.random().toString(36).substr(2, 9), ...newItem, images: newItem.images || [], active: newItem.active !== false };
+    const item = withItemDefaults({ id: Math.random().toString(36).substr(2, 9), ...newItem, images: newItem.images || [], active: newItem.active !== false });
 
     if (targetField === 'specials') {
       const area = areas.find(a => a.id === selectedAreaId);
@@ -526,7 +543,7 @@ export default function MenuEditor() {
       setSides([...sides, item]);
     }
 
-    setNewItem({ section_id: '', name: '', description: '', price: '', date: '', time: '', location: '', type: 'side', images: [], active: true });
+    setNewItem(createBlankItem());
   };
 
   const updateFlatItem = (targetField) => {
@@ -711,6 +728,20 @@ export default function MenuEditor() {
       {showDate && <input type="date" value={(editingItem ? editingItem.date : newItem.date) || ''} onChange={(e) => editingItem ? setEditingItem({...editingItem, date: e.target.value}) : setNewItem({...newItem, date: e.target.value})} style={{width: '100%', padding: 8, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 8}} />}
       {showTime && <input type="time" value={editingItem ? editingItem.time : newItem.time} onChange={(e) => editingItem ? setEditingItem({...editingItem, time: e.target.value}) : setNewItem({...newItem, time: e.target.value})} style={{width: '100%', padding: 8, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 8}} />}
       {showLocation && <input type="text" placeholder="Location" value={editingItem ? editingItem.location : newItem.location} onChange={(e) => editingItem ? setEditingItem({...editingItem, location: e.target.value}) : setNewItem({...newItem, location: e.target.value})} style={{width: '100%', padding: 8, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 8}} />}
+      <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginBottom: 8}}>
+        {[
+          ['available', 'Available'],
+          ['featured', 'Featured'],
+          ['catch_of_the_day', 'Catch of Day'],
+          ['market_price', 'Market Price'],
+          ['on_tap', 'On Tap']
+        ].map(([key, label]) => (
+          <label key={key} style={{display: 'flex', alignItems: 'center', gap: 6, color: '#f1f5f9', fontSize: 12, background: '#1e293b', padding: 8, borderRadius: 6}}>
+            <input type="checkbox" checked={editingItem ? !!withItemDefaults(editingItem)[key] : !!withItemDefaults(newItem)[key]} onChange={(e) => editingItem ? setEditingItem({...editingItem, [key]: e.target.checked, ...(key === 'available' ? { active: e.target.checked } : {}), ...(key === 'market_price' && e.target.checked ? { price: 'Market Price' } : {})}) : setNewItem({...newItem, [key]: e.target.checked, ...(key === 'available' ? { active: e.target.checked } : {}), ...(key === 'market_price' && e.target.checked ? { price: 'Market Price' } : {})})} />
+            {label}
+          </label>
+        ))}
+      </div>
       {!isSectionItem && <div style={{display: 'flex', gap: 8, marginBottom: 8}}>
         <label style={{flex: 1, display: 'flex', alignItems: 'center', gap: 6, color: '#f1f5f9'}}>
           <input type="checkbox" checked={editingItem ? editingItem.active : newItem.active} onChange={(e) => editingItem ? setEditingItem({...editingItem, active: e.target.checked}) : setNewItem({...newItem, active: e.target.checked})} />
@@ -759,6 +790,54 @@ export default function MenuEditor() {
     </div>
   );
 
+  const selectedArea = areas.find(a => a.id === selectedAreaId);
+
+  const itemDefaults = {
+    active: true,
+    available: true,
+    featured: false,
+    catch_of_the_day: false,
+    market_price: false,
+    on_tap: false
+  };
+
+  const withItemDefaults = (item) => ({ ...itemDefaults, ...item });
+
+  const getLaunchItems = () => {
+    if (!selectedArea) return [];
+    const collect = (field, label) => (selectedArea[field] || []).flatMap(section =>
+      (section.items || []).map(item => ({ ...withItemDefaults(item), sectionId: section.id, sectionName: section.name, field, label }))
+    );
+    return [
+      ...collect('menu_sections', 'Menu'),
+      ...collect('drink_sections', 'Drinks')
+    ];
+  };
+
+  const updateNestedItem = (field, sectionId, itemId, updater) => {
+    setAreas(areas.map(area => area.id === selectedAreaId ? {
+      ...area,
+      [field]: (area[field] || []).map(section => section.id === sectionId ? {
+        ...section,
+        items: (section.items || []).map(item => item.id === itemId ? updater(withItemDefaults(item)) : item)
+      } : section)
+    } : area));
+  };
+
+  const setSingleCatchOfDay = (field, sectionId, itemId) => {
+    setAreas(areas.map(area => area.id === selectedAreaId ? {
+      ...area,
+      menu_sections: (area.menu_sections || []).map(section => ({
+        ...section,
+        items: (section.items || []).map(item => ({ ...item, catch_of_the_day: field === 'menu_sections' && section.id === sectionId && item.id === itemId }))
+      })),
+      drink_sections: (area.drink_sections || []).map(section => ({
+        ...section,
+        items: (section.items || []).map(item => ({ ...item, catch_of_the_day: field === 'drink_sections' && section.id === sectionId && item.id === itemId }))
+      }))
+    } : area));
+  };
+
   if (!pinEntered) {
     return (
       <div className={styles.pinScreen}>
@@ -773,8 +852,6 @@ export default function MenuEditor() {
       </div>
     );
   }
-
-  const selectedArea = areas.find(a => a.id === selectedAreaId);
 
   // AI Chat handler
   const handleAiChat = async (e) => {
@@ -966,14 +1043,87 @@ export default function MenuEditor() {
           </div>
 
           <div style={{display: 'flex', gap: 8, padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,.1)', overflowX: 'auto'}}>
-            {['menu', 'drinks', 'specials', 'sides', 'daily', 'events', 'happyHour', 'hours', 'dailyFeatures', 'gallery', 'business'].map(t => (
-              <button key={t} onClick={() => { setTab(t); setEditingItem(null); setNewItem({ section_id: '', name: '', description: '', price: '', date: '', time: '', location: '', images: [], active: true }); }} style={{padding: '8px 12px', background: tab === t ? '#0b7a75' : '#1e293b', color: '#f1f5f9', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: tab === t ? 600 : 400, whiteSpace: 'nowrap'}}>
-                {t === 'menu' && '🍽️'}{t === 'drinks' && '🥤'}{t === 'specials' && '⭐'}{t === 'sides' && '➕'}{t === 'daily' && '📅'}{t === 'events' && '🎉'}{t === 'happyHour' && '🍹'}{t === 'hours' && '🕐'}{t === 'dailyFeatures' && '🎣'}{t === 'gallery' && '📷'}{t === 'business' && '🌐'}
+            {['today', 'menu', 'drinks', 'specials', 'sides', 'daily', 'events', 'happyHour', 'hours', 'dailyFeatures', 'gallery', 'preview', 'business'].map(t => (
+              <button key={t} onClick={() => { setTab(t); setEditingItem(null); setNewItem(createBlankItem()); }} style={{padding: '8px 12px', background: tab === t ? '#0b7a75' : '#1e293b', color: '#f1f5f9', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: tab === t ? 600 : 400, whiteSpace: 'nowrap'}}>
+                {t === 'today' && '⚡'}{t === 'menu' && '🍽️'}{t === 'drinks' && '🥤'}{t === 'specials' && '⭐'}{t === 'sides' && '➕'}{t === 'daily' && '📅'}{t === 'events' && '🎉'}{t === 'happyHour' && '🍹'}{t === 'hours' && '🕐'}{t === 'dailyFeatures' && '🎣'}{t === 'gallery' && '📷'}{t === 'preview' && '👁️'}{t === 'business' && '🌐'}
               </button>
             ))}
           </div>
 
           <div style={{padding: '20px', flex: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 300px)'}}>
+            {/* TODAY TAB */}
+            {tab === 'today' && (
+              <>
+                <h2>Today</h2>
+                <p style={{fontSize: 13, color: '#94a3b8', marginTop: -6, marginBottom: 16}}>Fast daily controls for prices, sold out items, catch of the day, beer on tap, and specials.</p>
+
+                {getLaunchItems().filter(item => item.catch_of_the_day).length > 0 && (
+                  <div style={{background: '#1e293b', borderLeft: '4px solid #f59e0b', padding: 14, borderRadius: 8, marginBottom: 16}}>
+                    <div style={{fontSize: 12, color: '#f59e0b', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.06em'}}>Catch of the Day</div>
+                    {getLaunchItems().filter(item => item.catch_of_the_day).map(item => (
+                      <div key={`${item.field}-${item.id}`} style={{marginTop: 6, display: 'flex', justifyContent: 'space-between', gap: 10}}>
+                        <strong>{item.name}</strong>
+                        <span style={{color: '#4ade80', fontWeight: 700}}>{item.market_price ? 'Market Price' : item.price}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginBottom: 18}}>
+                  {rotatingSections.map(sec => (
+                    <div key={sec.id} style={{background: '#1e293b', padding: 12, borderRadius: 8}}>
+                      <h3 style={{margin: '0 0 8px 0', color: '#f59e0b', fontSize: 15}}>{sec.name}</h3>
+                      {(sec.items || []).length === 0 && <p style={{color: '#64748b', fontSize: 12, margin: 0}}>No rotating items yet.</p>}
+                      {(sec.items || []).map(item => (
+                        <div key={item.id} style={{display: 'grid', gridTemplateColumns: '1fr 76px 54px', gap: 8, alignItems: 'center', padding: '7px 0', borderTop: '1px solid rgba(255,255,255,.08)'}}>
+                          <div>
+                            <div style={{fontWeight: 700, fontSize: 13}}>{item.name}</div>
+                            {item.description && <div style={{fontSize: 11, color: '#94a3b8'}}>{item.description}</div>}
+                          </div>
+                          <input value={item.price || ''} onChange={(e) => setRotatingSections(rotatingSections.map(s => s.id === sec.id ? {...s, items: s.items.map(i => i.id === item.id ? {...i, price: e.target.value} : i)} : s))} placeholder="$" style={{padding: 6, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 5, fontSize: 12}} />
+                          <button onClick={() => setRotatingSections(rotatingSections.map(s => s.id === sec.id ? {...s, items: s.items.map(i => i.id === item.id ? {...i, active: !i.active} : i)} : s))} style={{padding: '6px 8px', background: item.active !== false ? '#166534' : '#475569', color: 'white', border: 'none', borderRadius: 5, cursor: 'pointer', fontSize: 11}}>{item.active !== false ? 'On' : 'Off'}</button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
+                <h3 style={{marginBottom: 10}}>Menu & Drink Items</h3>
+                {getLaunchItems().length === 0 && <p style={{color: '#64748b'}}>No menu items yet. Add sections and items in Menu or Drinks.</p>}
+                {getLaunchItems().map(item => (
+                  <div key={`${item.field}-${item.id}`} style={{background: '#1e293b', padding: 12, borderRadius: 8, marginBottom: 10, opacity: item.available === false || item.active === false ? .62 : 1}}>
+                    <div style={{display: 'grid', gridTemplateColumns: '1fr 110px', gap: 10, alignItems: 'start'}}>
+                      <div>
+                        <div style={{fontSize: 11, color: '#94a3b8', marginBottom: 3}}>{item.label} / {item.sectionName}</div>
+                        <strong>{item.name}</strong>
+                        {item.description && <p style={{margin: '4px 0 0', fontSize: 12, color: '#94a3b8'}}>{item.description}</p>}
+                      </div>
+                      <input value={item.market_price ? 'Market Price' : (item.price || '')} onChange={(e) => updateNestedItem(item.field, item.sectionId, item.id, old => ({ ...old, price: e.target.value, market_price: e.target.value.toLowerCase().includes('market') }))} style={{padding: 8, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, fontWeight: 700}} />
+                    </div>
+                    <div style={{display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 10}}>
+                      <button onClick={() => updateNestedItem(item.field, item.sectionId, item.id, old => ({ ...old, available: old.available === false ? true : false, active: old.available === false ? true : false }))} style={{padding: '7px 10px', background: item.available === false || item.active === false ? '#7f1d1d' : '#166534', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700}}>{item.available === false || item.active === false ? 'Sold Out' : 'Available'}</button>
+                      <button onClick={() => updateNestedItem(item.field, item.sectionId, item.id, old => ({ ...old, featured: !old.featured }))} style={{padding: '7px 10px', background: item.featured ? '#7c3aed' : '#334155', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12}}>Featured</button>
+                      <button onClick={() => item.catch_of_the_day ? updateNestedItem(item.field, item.sectionId, item.id, old => ({ ...old, catch_of_the_day: false })) : setSingleCatchOfDay(item.field, item.sectionId, item.id)} style={{padding: '7px 10px', background: item.catch_of_the_day ? '#f59e0b' : '#334155', color: item.catch_of_the_day ? '#111827' : 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700}}>Catch</button>
+                      <button onClick={() => updateNestedItem(item.field, item.sectionId, item.id, old => ({ ...old, market_price: !old.market_price, price: !old.market_price ? 'Market Price' : '' }))} style={{padding: '7px 10px', background: item.market_price ? '#0ea5e9' : '#334155', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12}}>Market</button>
+                      {item.field === 'drink_sections' && <button onClick={() => updateNestedItem(item.field, item.sectionId, item.id, old => ({ ...old, on_tap: !old.on_tap }))} style={{padding: '7px 10px', background: item.on_tap ? '#10b981' : '#334155', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12}}>On Tap</button>}
+                    </div>
+                  </div>
+                ))}
+
+                <h3 style={{margin: '20px 0 10px'}}>Active Specials</h3>
+                {(selectedArea.specials || []).length === 0 && <p style={{color: '#64748b'}}>No specials yet.</p>}
+                {(selectedArea.specials || []).map(special => (
+                  <div key={special.id} style={{background: '#1e293b', padding: 12, borderRadius: 8, marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 10}}>
+                    <div>
+                      <strong>{special.name}</strong>
+                      <div style={{fontSize: 12, color: '#94a3b8'}}>{special.description}</div>
+                    </div>
+                    <button onClick={() => setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, specials: a.specials.map(i => i.id === special.id ? { ...i, active: i.active === false ? true : false } : i) } : a))} style={{padding: '6px 10px', background: special.active === false ? '#475569' : '#166534', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer'}}>{special.active === false ? 'Off' : 'Active'}</button>
+                  </div>
+                ))}
+              </>
+            )}
+
             {/* MENU TAB */}
             {tab === 'menu' && (
               <>
@@ -1467,7 +1617,7 @@ export default function MenuEditor() {
                           <button onClick={() => { setSectionTimeStart('17:00'); setSectionTimeEnd('22:00'); }} style={{flex: 1, padding: 8, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>🌙 Dinner</button>
                           <button onClick={() => { setSectionTimeStart(''); setSectionTimeEnd(''); }} style={{flex: 1, padding: 8, background: '#64748b', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>✕ All Day</button>
                         </div>
-                        <ItemForm targetField="daily" onAdd={() => { const timeRange = sectionTimeStart && sectionTimeEnd ? `${sectionTimeStart}-${sectionTimeEnd}` : ''; const item = { id: Math.random().toString(36).substr(2, 9), ...newItem, images: newItem.images || [], active: newItem.active, time_range: timeRange }; setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, daily_specials: { ...a.daily_specials, [day]: item } } : a)); setNewItem({ section_id: '', name: '', description: '', price: '', date: '', time: '', location: '', images: [], active: true }); setSectionTimeStart(''); setSectionTimeEnd(''); }} onUpdate={() => { const timeRange = sectionTimeStart && sectionTimeEnd ? `${sectionTimeStart}-${sectionTimeEnd}` : ''; setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, daily_specials: { ...a.daily_specials, [day]: { ...editingItem, time_range: timeRange } } } : a)); setEditingItem(null); setSectionTimeStart(''); setSectionTimeEnd(''); }} />
+                        <ItemForm targetField="daily" onAdd={() => { const timeRange = sectionTimeStart && sectionTimeEnd ? `${sectionTimeStart}-${sectionTimeEnd}` : ''; const item = withItemDefaults({ id: Math.random().toString(36).substr(2, 9), ...newItem, images: newItem.images || [], active: newItem.active, time_range: timeRange }); setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, daily_specials: { ...a.daily_specials, [day]: item } } : a)); setNewItem(createBlankItem()); setSectionTimeStart(''); setSectionTimeEnd(''); }} onUpdate={() => { const timeRange = sectionTimeStart && sectionTimeEnd ? `${sectionTimeStart}-${sectionTimeEnd}` : ''; setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, daily_specials: { ...a.daily_specials, [day]: { ...withItemDefaults(editingItem), time_range: timeRange } } } : a)); setEditingItem(null); setSectionTimeStart(''); setSectionTimeEnd(''); }} />
                       </div>
                     )}
                   </div>
@@ -1573,7 +1723,7 @@ export default function MenuEditor() {
                         <option>Steamed</option>
                         <option>Baked</option>
                       </select>
-                      <button onClick={editingItem ? () => { const updated = happyHour.map(item => item.id === editingItem.id ? editingItem : item); setHappyHour(updated); setEditingItem(null); setExpandedAddForm(null); } : () => { const item = { id: Math.random().toString(36).substr(2, 9), ...newItem, images: newItem.images || [], active: newItem.active }; setHappyHour([...happyHour, item]); setNewItem({ section_id: '', name: '', description: '', price: '', date: '', time: '', location: '', type: 'side', images: [], active: true }); setExpandedAddForm(null); }} style={{flex: 1, padding: 10, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600}}>
+                      <button onClick={editingItem ? () => { const updated = happyHour.map(item => item.id === editingItem.id ? withItemDefaults(editingItem) : item); setHappyHour(updated); setEditingItem(null); setExpandedAddForm(null); } : () => { const item = withItemDefaults({ id: Math.random().toString(36).substr(2, 9), ...newItem, images: newItem.images || [], active: newItem.active }); setHappyHour([...happyHour, item]); setNewItem(createBlankItem()); setExpandedAddForm(null); }} style={{flex: 1, padding: 10, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600}}>
                         {editingItem ? 'Update' : 'Save'}
                       </button>
                     </div>
@@ -1706,6 +1856,65 @@ export default function MenuEditor() {
                   </div>
                 ))}
                 {gallery.length === 0 && <p style={{color: '#64748b'}}>No images uploaded yet</p>}
+              </>
+            )}
+
+            {/* PREVIEW TAB */}
+            {tab === 'preview' && (
+              <>
+                <h2>QR Menu Preview</h2>
+                <p style={{fontSize: 13, color: '#94a3b8', marginTop: -6, marginBottom: 16}}>Simple customer view using the same data this editor saves.</p>
+                <div style={{background: theme.bg || '#f7f7f7', color: theme.text || '#111', borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,.12)'}}>
+                  <div style={{padding: 18, background: theme.primary || '#0b7a75', color: '#fff'}}>
+                    <h1 style={{margin: '0 0 4px', fontSize: 26}}>{business.name || 'Restaurant Menu'}</h1>
+                    <p style={{margin: 0, opacity: .88}}>{business.tagline || business.about || 'Fresh menu, updated daily.'}</p>
+                  </div>
+                  <div style={{padding: 16}}>
+                    {getLaunchItems().filter(item => item.catch_of_the_day && item.available !== false && item.active !== false).map(item => (
+                      <div key={`catch-preview-${item.field}-${item.id}`} style={{background: theme.surface || '#fff', border: `2px solid ${theme.accent || '#f0a500'}`, borderRadius: 10, padding: 14, marginBottom: 14}}>
+                        <div style={{fontSize: 11, color: theme.accent || '#f0a500', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.08em'}}>Catch of the Day</div>
+                        <h3 style={{margin: '4px 0'}}>{item.name}</h3>
+                        {item.description && <p style={{margin: '0 0 8px', color: '#64748b'}}>{item.description}</p>}
+                        <strong>{item.market_price ? 'Market Price' : item.price}</strong>
+                      </div>
+                    ))}
+
+                    {[...(selectedArea.menu_sections || []), ...(selectedArea.drink_sections || [])].map(section => (
+                      <div key={`pv-section-${section.id}`} style={{marginBottom: 18}}>
+                        <h2 style={{fontSize: 22, margin: '0 0 4px', color: theme.primary || '#0b7a75'}}>{section.name}</h2>
+                        {section.time_range && <div style={{fontSize: 12, color: '#64748b', marginBottom: 8}}>Available {section.time_range}</div>}
+                        {(section.items || []).filter(item => withItemDefaults(item).available !== false && withItemDefaults(item).active !== false).map(item => {
+                          const normalized = withItemDefaults(item);
+                          return (
+                            <div key={`pv-item-${section.id}-${item.id}`} style={{background: theme.surface || '#fff', borderRadius: 8, padding: 12, marginBottom: 8, display: 'grid', gridTemplateColumns: item.images?.[0]?.url ? '70px 1fr auto' : '1fr auto', gap: 10, alignItems: 'center'}}>
+                              {item.images?.[0]?.url && <img src={item.images[0].url} alt="" style={{width: 70, height: 58, objectFit: 'cover', borderRadius: 7}} />}
+                              <div>
+                                <strong>{item.name}</strong>
+                                {normalized.featured && <span style={{marginLeft: 6, fontSize: 11, color: theme.accent || '#f0a500', fontWeight: 800}}>Featured</span>}
+                                {normalized.on_tap && <span style={{marginLeft: 6, fontSize: 11, color: '#10b981', fontWeight: 900}}>On Tap</span>}
+                                {item.description && <p style={{margin: '3px 0 0', fontSize: 13, color: '#64748b'}}>{item.description}</p>}
+                              </div>
+                              <strong style={{whiteSpace: 'nowrap'}}>{normalized.market_price ? 'Market Price' : item.price}</strong>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+
+                    {(selectedArea.specials || []).filter(s => s.active !== false).length > 0 && (
+                      <div style={{marginBottom: 18}}>
+                        <h2 style={{fontSize: 22, margin: '0 0 8px', color: theme.primary || '#0b7a75'}}>Specials</h2>
+                        {(selectedArea.specials || []).filter(s => s.active !== false).map(s => (
+                          <div key={`pv-special-${s.id}`} style={{background: theme.surface || '#fff', borderRadius: 8, padding: 12, marginBottom: 8}}>
+                            <strong>{s.name}</strong>
+                            {s.price && <strong style={{float: 'right'}}>{s.price}</strong>}
+                            {s.description && <p style={{margin: '3px 0 0', fontSize: 13, color: '#64748b'}}>{s.description}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </>
             )}
 

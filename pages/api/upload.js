@@ -18,7 +18,8 @@ export default async function handler(req, res) {
   try {
     const form = formidable({ maxFileSize: 10 * 1024 * 1024 });
     const [fields, files] = await form.parse(req);
-    const file = Array.isArray(files.file) ? files.file[0] : files.file;
+    const uploadedFile = files.image || files.file;
+    const file = Array.isArray(uploadedFile) ? uploadedFile[0] : uploadedFile;
 
     if (!file) return res.status(400).json({ error: 'No file' });
 
