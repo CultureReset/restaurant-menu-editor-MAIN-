@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import styles from '../styles/Home.module.css';
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://gcr-api-clean.vercel.app';
+
 export default function NewBusiness() {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -20,32 +22,26 @@ export default function NewBusiness() {
     setError('');
 
     try {
-      const initialData = {
-        restaurant: {
-          name: form.name,
-          tagline: form.tagline,
-          icon: form.icon
-        },
-        sections: ['Appetizers', 'Main Course', 'Drinks', 'Desserts'],
-        items: [],
-        gallery: [],
-        pin: form.pin
-      };
-
-      const res = await fetch(`/api/data?slug=${form.slug}`, {
+      const res = await fetch(`${API_URL}/api/menu-editor/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(initialData)
+        body: JSON.stringify({
+          name: form.name,
+          slug: form.slug,
+          tagline: form.tagline,
+          icon: form.icon,
+          pin: form.pin
+        })
       });
 
-      if (!res.ok) {
-        const data = await res.json();
+      const data = await res.json();
+      if (!res.ok || !data.success) {
         setError(data.error || 'Failed to create');
         setLoading(false);
         return;
       }
 
-      router.push(`/?slug=${form.slug}`);
+      router.push(`/?slug=${data.slug}`);
     } catch (err) {
       setError(err.message);
       setLoading(false);
