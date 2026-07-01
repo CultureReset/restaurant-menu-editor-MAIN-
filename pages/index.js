@@ -355,7 +355,15 @@ export default function MenuEditor() {
               setTheme(prev => ({ ...prev, ...menuData.entity.theme }));
             }
             const photos = menuData.entity_photos || menuData.photos || [];
-            if (photos.length > 0) setGallery(photos.map(p => ({ id: p.id || Math.random().toString(36).substr(2,9), url: p.url, type: p.is_cover ? 'Hero' : 'Business', label: p.caption || '' })));
+            if (photos.length > 0) setGallery(photos.map(p => ({
+              id:         p.id || Math.random().toString(36).substr(2, 9),
+              url:        p.url || p.image_url,
+              type:       p.usage_note || (p.is_cover ? 'Cover' : 'gallery'),
+              photo_type: p.photo_type || null,
+              label:      p.caption || '',
+              is_cover:   p.is_cover || false,
+              sort_order: p.sort_order || 0,
+            })));
           }
 
           // Now show the editor
@@ -639,7 +647,20 @@ export default function MenuEditor() {
     }
     try {
       setSaving(true);
-      const payload = { business, gallery, sides, dailyFeatures, areas, rotatingSections, theme, happyHour };
+      const payload = {
+        business,
+        gallery: gallery.map(g => ({
+          id:         g.id,
+          url:        g.url,
+          type:       g.type,
+          photo_type: g.photo_type || null,
+          is_cover:   g.is_cover || false,
+          label:      g.label || '',
+          caption:    g.label || '',
+          sort_order: g.sort_order,
+        })),
+        sides, dailyFeatures, areas, rotatingSections, theme, happyHour
+      };
       const res = await fetch(`${API_URL}/api/menu-editor/${slug}/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-menu-token': token },
@@ -748,10 +769,41 @@ export default function MenuEditor() {
           Active
         </label>
       </div>}
-      <button onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} style={{width: '100%', padding: 8, background: uploadingImage ? '#64748b' : '#1e293b', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: uploadingImage ? 'not-allowed' : 'pointer', marginBottom: 8}}>
-        {uploadingImage ? 'Uploading...' : '+ Add Image'}
-      </button>
+      <div style={{display: 'flex', gap: 8, marginBottom: 8}}>
+        <button onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} style={{flex: 1, padding: 8, background: uploadingImage ? '#64748b' : '#1e293b', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: uploadingImage ? 'not-allowed' : 'pointer'}}>
+          {uploadingImage ? 'Uploading…' : '📤 Upload Photo'}
+        </button>
+        <button onClick={() => setShowGallerySelector(showGallerySelector ? null : 'item')} style={{flex: 1, padding: 8, background: showGallerySelector ? '#0b7a75' : '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.2)', borderRadius: 6, cursor: 'pointer'}}>
+          🖼 Choose from Gallery
+        </button>
+      </div>
       <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{display: 'none'}} />
+
+      {/* Gallery picker — shows when "Choose from Gallery" is clicked */}
+      {showGallerySelector === 'item' && (
+        <div style={{marginBottom: 12, padding: 10, background: '#0f172a', border: '1px solid rgba(255,255,255,.15)', borderRadius: 8}}>
+          <div style={{fontSize: 12, color: '#94a3b8', marginBottom: 8, fontWeight: 700}}>TAP A PHOTO TO USE IT</div>
+          {gallery.length === 0 ? (
+            <div style={{color: '#475569', fontSize: 12, textAlign: 'center', padding: 12}}>No gallery photos yet — upload some in the Gallery tab first</div>
+          ) : (
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6}}>
+              {gallery.map(img => (
+                <div key={img.id} onClick={() => {
+                  const picked = { url: img.url, label: img.label || img.photo_type || 'Photo' };
+                  if (editingItem) setEditingItem({ ...editingItem, images: [...(editingItem.images || []), picked] });
+                  else setNewItem(prev => ({ ...prev, images: [...(prev.images || []), picked] }));
+                  setShowGallerySelector(null);
+                }} style={{cursor: 'pointer', borderRadius: 6, overflow: 'hidden', border: '1px solid rgba(255,255,255,.1)'}}>
+                  <img src={img.url} alt="" style={{width: '100%', height: 60, objectFit: 'cover', display: 'block'}} />
+                  {img.photo_type && <div style={{fontSize: 9, color: '#94a3b8', textAlign: 'center', padding: '2px 0', background: '#1e293b'}}>{img.photo_type}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+          <button onClick={() => setShowGallerySelector(null)} style={{width: '100%', marginTop: 8, padding: 6, background: '#334155', color: '#f1f5f9', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12}}>Cancel</button>
+        </div>
+      )}
+
       <div style={{display: 'flex', gap: 8, marginBottom: 8}}>
         {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
           <div key={idx} style={{position: 'relative', width: 60, height: 60}}>
@@ -1798,68 +1850,110 @@ export default function MenuEditor() {
             {/* GALLERY TAB */}
             {tab === 'gallery' && (
               <>
-                <h2>Gallery</h2>
-                <div style={{marginBottom: 20}}>
-                  <label style={{display: 'block', width: '100%', padding: 12, background: uploadingImage ? '#64748b' : '#0b7a75', color: 'white', border: 'none', borderRadius: 8, cursor: uploadingImage ? 'not-allowed' : 'pointer', fontWeight: 600, textAlign: 'center', boxSizing: 'border-box'}}>
-                    {uploadProgress ? `Uploading ${uploadProgress.done} / ${uploadProgress.total}...` : '📤 Upload Images (select multiple)'}
-                    <input ref={galleryInputRef} type="file" accept="image/*" multiple disabled={uploadingImage} onChange={async (e) => {
-                      const files = Array.from(e.target.files);
-                      if (!files.length) return;
-                      setUploadingImage(true);
-                      setUploadProgress({ done: 0, total: files.length });
-                      const errors = [];
-                      for (let i = 0; i < files.length; i++) {
-                        try {
-                          const formData = new FormData();
-                          formData.append('image', files[i]);
-                          formData.append('type', 'gallery');
-                          const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/upload`, {
-                            method: 'POST',
-                            headers: { 'x-menu-token': token },
-                            body: formData,
-                          });
-                          const data = await res.json();
-                          if (data.url) {
-                            setGallery(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), url: data.url, type: 'Business', label: '' }]);
-                          } else {
-                            errors.push(files[i].name + ': ' + (data.error || 'failed'));
-                          }
-                        } catch (err) {
-                          errors.push(files[i].name + ': ' + err.message);
-                        }
-                        setUploadProgress({ done: i + 1, total: files.length });
-                      }
-                      setUploadingImage(false);
-                      setUploadProgress(null);
-                      e.target.value = '';
-                      if (errors.length) alert('Some uploads failed:\n' + errors.join('\n'));
-                    }} style={{display: 'none'}} />
-                  </label>
+                <h2 style={{margin: '0 0 16px'}}>📷 Photo Gallery</h2>
+                <p style={{color: '#94a3b8', fontSize: 13, margin: '0 0 16px', lineHeight: 1.5}}>
+                  Upload any photo. Set the <strong style={{color: '#f1f5f9'}}>Hero</strong> image (top of profile), 
+                  <strong style={{color: '#f1f5f9'}}> Cover</strong> (card thumbnail in listings), and 
+                  <strong style={{color: '#f1f5f9'}}> Food/Exterior/Interior</strong> photos for the gallery. 
+                  Menu items can pick from here too.
+                </p>
+
+                {/* Upload button */}
+                <label style={{display: 'block', width: '100%', padding: 14, background: uploadingImage ? '#334155' : '#0b7a75', color: 'white', border: 'none', borderRadius: 10, cursor: uploadingImage ? 'not-allowed' : 'pointer', fontWeight: 700, textAlign: 'center', boxSizing: 'border-box', fontSize: 15, marginBottom: 20}}>
+                  {uploadProgress ? `Uploading ${uploadProgress.done} / ${uploadProgress.total}…` : '📤 Upload Photos (tap to select, multiple OK)'}
+                  <input type="file" accept="image/*" multiple disabled={uploadingImage} onChange={async (e) => {
+                    const files = Array.from(e.target.files);
+                    if (!files.length) return;
+                    setUploadingImage(true);
+                    setUploadProgress({ done: 0, total: files.length });
+                    for (let i = 0; i < files.length; i++) {
+                      try {
+                        const fd = new FormData();
+                        fd.append('image', files[i]);
+                        fd.append('type', 'gallery');
+                        const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/upload`, {
+                          method: 'POST', headers: { 'x-menu-token': token }, body: fd,
+                        });
+                        const d = await res.json();
+                        if (d.url) setGallery(prev => [...prev, { id: d.id || Math.random().toString(36).substr(2,9), url: d.url, type: 'gallery', photo_type: null, label: '', is_cover: false }]);
+                      } catch {}
+                      setUploadProgress({ done: i + 1, total: files.length });
+                    }
+                    setUploadingImage(false);
+                    setUploadProgress(null);
+                    e.target.value = '';
+                  }} style={{display: 'none'}} />
+                </label>
+
+                {/* All photos grid */}
+                {gallery.length === 0 && (
+                  <div style={{textAlign: 'center', padding: '40px 20px', color: '#475569', border: '2px dashed #334155', borderRadius: 12}}>
+                    <div style={{fontSize: 40, marginBottom: 8}}>📷</div>
+                    <div>No photos yet — upload some above</div>
+                  </div>
+                )}
+
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12}}>
+                  {gallery.map((img, idx) => (
+                    <div key={img.id} style={{borderRadius: 10, overflow: 'hidden', background: '#1e293b', border: img.type === 'Hero' ? '2px solid #f59e0b' : img.is_cover ? '2px solid #22c55e' : '1px solid rgba(255,255,255,.1)', position: 'relative'}}>
+                      <img src={img.url} alt="" style={{width: '100%', height: 110, objectFit: 'cover', display: 'block'}} />
+
+                      {/* Badge */}
+                      {img.type === 'Hero' && <div style={{position: 'absolute', top: 6, left: 6, background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 900, padding: '2px 7px', borderRadius: 999}}>HERO</div>}
+                      {img.is_cover && img.type !== 'Hero' && <div style={{position: 'absolute', top: 6, left: 6, background: '#22c55e', color: '#000', fontSize: 10, fontWeight: 900, padding: '2px 7px', borderRadius: 999}}>COVER</div>}
+                      {img.photo_type && <div style={{position: 'absolute', top: img.type === 'Hero' || img.is_cover ? 26 : 6, left: 6, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999}}>{img.photo_type}</div>}
+
+                      {/* Delete */}
+                      <button onClick={() => setGallery(gallery.filter(g => g.id !== img.id))} style={{position: 'absolute', top: 6, right: 6, background: 'rgba(220,38,38,.85)', color: 'white', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>✕</button>
+
+                      {/* Controls */}
+                      <div style={{padding: '8px 8px 10px', display: 'flex', flexDirection: 'column', gap: 5}}>
+                        {/* Photo type */}
+                        <select value={img.photo_type || ''} onChange={(e) => setGallery(gallery.map(g => g.id === img.id ? {...g, photo_type: e.target.value || null} : g))}
+                          style={{width: '100%', padding: '5px 6px', background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, fontSize: 11}}>
+                          <option value="">Type…</option>
+                          <option value="food">🍽 Food</option>
+                          <option value="exterior">🏠 Exterior</option>
+                          <option value="interior">🪑 Interior</option>
+                          <option value="outdoor">🌴 Outdoor</option>
+                          <option value="event">🎉 Event</option>
+                          <option value="drink">🍹 Drink</option>
+                        </select>
+
+                        {/* Action buttons */}
+                        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4}}>
+                          <button onClick={async () => {
+                            setGallery(gallery.map(g => g.id === img.id ? {...g, type: 'Hero'} : {...g, type: g.type === 'Hero' ? 'gallery' : g.type}));
+                            try { await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/set-hero`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-menu-token': token }, body: JSON.stringify({ url: img.url }) }); } catch {}
+                          }} style={{padding: '5px 2px', background: img.type === 'Hero' ? '#f59e0b' : 'rgba(245,158,11,.15)', color: img.type === 'Hero' ? '#000' : '#f59e0b', border: '1px solid rgba(245,158,11,.4)', borderRadius: 6, fontSize: 10, fontWeight: 800, cursor: 'pointer'}}>
+                            ⭐ Hero
+                          </button>
+                          <button onClick={() => setGallery(gallery.map(g => g.id === img.id ? {...g, is_cover: !g.is_cover} : g))}
+                            style={{padding: '5px 2px', background: img.is_cover ? '#22c55e' : 'rgba(34,197,94,.1)', color: img.is_cover ? '#000' : '#22c55e', border: '1px solid rgba(34,197,94,.3)', borderRadius: 6, fontSize: 10, fontWeight: 800, cursor: 'pointer'}}>
+                            🃏 Cover
+                          </button>
+                        </div>
+
+                        {/* Caption */}
+                        <input value={img.label || ''} onChange={(e) => setGallery(gallery.map(g => g.id === img.id ? {...g, label: e.target.value} : g))}
+                          placeholder="Caption…" style={{width: '100%', padding: '5px 6px', background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.1)', borderRadius: 6, fontSize: 11, boxSizing: 'border-box'}} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                {['Hero', 'Business', 'Trip Swipe'].map(type => (
-                  <div key={type} style={{marginBottom: 20}}>
-                    <h3>{type} Images</h3>
-                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 12}}>
-                      {gallery.filter(img => img.type === type).map(img => (
-                        <div key={img.id} style={{position: 'relative', borderRadius: 8, overflow: 'hidden'}}>
-                          <img src={img.url} alt={img.name} style={{width: '100%', height: 100, objectFit: 'cover'}} />
-                          <select value={img.type} onChange={(e) => setGallery(gallery.map(g => g.id === img.id ? {...g, type: e.target.value} : g))} style={{position: 'absolute', bottom: 4, right: 4, padding: '4px 6px', background: '#1e293b', color: '#f1f5f9', border: 'none', borderRadius: 4, fontSize: 10}}>
-                            <option>Hero</option>
-                            <option>Business</option>
-                            <option>Trip Swipe</option>
-                          </select>
-                          <button onClick={() => setGallery(gallery.filter(g => g.id !== img.id))} style={{position: 'absolute', top: 4, right: 4, background: '#dc2626', color: 'white', border: 'none', borderRadius: '50%', width: 24, height: 24, cursor: 'pointer', fontSize: 12}}>✕</button>
-                        </div>
-                      ))}
-                    </div>
+                {gallery.length > 0 && (
+                  <div style={{marginTop: 16, padding: 12, background: 'rgba(11,122,117,.1)', border: '1px solid rgba(11,122,117,.25)', borderRadius: 10, fontSize: 13, color: '#94a3b8', lineHeight: 1.5}}>
+                    <strong style={{color: '#f1f5f9'}}>💡 Tips:</strong> Set one photo as <strong style={{color: '#f59e0b'}}>Hero</strong> — it becomes the big image at the top of your profile page and updates immediately. 
+                    Set one as <strong style={{color: '#22c55e'}}>Cover</strong> — it's the thumbnail in listings and Trip Swipe cards. 
+                    Tag photos as <strong style={{color: '#f1f5f9'}}>Food / Exterior / Interior</strong> so they show in the right section of the gallery. Hit <strong style={{color: '#f1f5f9'}}>Save</strong> to apply all changes.
                   </div>
-                ))}
-                {gallery.length === 0 && <p style={{color: '#64748b'}}>No images uploaded yet</p>}
+                )}
               </>
             )}
 
             {/* PREVIEW TAB */}
+
             {tab === 'preview' && (
               <>
                 <h2>QR Menu Preview</h2>
