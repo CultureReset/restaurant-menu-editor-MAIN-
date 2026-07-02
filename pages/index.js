@@ -1886,7 +1886,7 @@ export default function MenuEditor() {
                   Menu items can pick from here too.
                 </p>
 
-                <div style={{background: 'linear-gradient(135deg, rgba(168,85,247,.18), rgba(168,85,247,.06))', border: '1px solid rgba(168,85,247,.35)', borderRadius: 12, padding: '14px 16px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap'}}>
+                <div style={{background: 'linear-gradient(135deg, rgba(168,85,247,.18), rgba(168,85,247,.06))', border: '1px solid rgba(168,85,247,.35)', borderRadius: 12, padding: '14px 16px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap'}}>
                   <div>
                     <div style={{fontWeight: 800, fontSize: 14, color: '#e9d5ff'}}>📱 Trip Swipe — Free while it's open</div>
                     <div style={{fontSize: 12, color: '#c4b5fd', marginTop: 2}}>
@@ -1899,6 +1899,24 @@ export default function MenuEditor() {
                     {gallery.filter(g => g.type === 'Trip Swipe').length} / 10
                   </div>
                 </div>
+
+                <div style={{display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap'}}>
+                  <div style={{flex: 1, minWidth: 140, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <span style={{fontSize: 12, color: '#94a3b8', fontWeight: 700}}>🏠 Outside</span>
+                    <strong style={{fontSize: 14}}>{gallery.filter(g => g.photo_type === 'exterior').length} / 3</strong>
+                  </div>
+                  <div style={{flex: 1, minWidth: 140, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 10, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <span style={{fontSize: 12, color: '#94a3b8', fontWeight: 700}}>🪑 Inside</span>
+                    <strong style={{fontSize: 14}}>{gallery.filter(g => g.photo_type === 'interior').length} / 3</strong>
+                  </div>
+                </div>
+
+                {slug && (
+                  <div style={{display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap'}}>
+                    <a href={`https://gulfcoastradar.com/business/${slug}`} target="_blank" rel="noreferrer" style={{flex: 1, minWidth: 160, textAlign: 'center', padding: 12, background: 'rgba(11,122,117,.12)', color: '#0b7a75', border: '1px solid rgba(11,122,117,.4)', borderRadius: 10, fontWeight: 700, fontSize: 13, textDecoration: 'none'}}>🌐 View Live Profile</a>
+                    <a href={`https://gulfcoastradar.com/links/${slug}`} target="_blank" rel="noreferrer" style={{flex: 1, minWidth: 160, textAlign: 'center', padding: 12, background: 'rgba(11,122,117,.12)', color: '#0b7a75', border: '1px solid rgba(11,122,117,.4)', borderRadius: 10, fontWeight: 700, fontSize: 13, textDecoration: 'none'}}>🔗 View Live Links Page</a>
+                  </div>
+                )}
 
                 {/* Upload button */}
                 <label style={{display: 'block', width: '100%', padding: 14, background: uploadingImage ? '#334155' : '#0b7a75', color: 'white', border: 'none', borderRadius: 10, cursor: uploadingImage ? 'not-allowed' : 'pointer', fontWeight: 700, textAlign: 'center', boxSizing: 'border-box', fontSize: 15, marginBottom: 20}}>
@@ -1952,7 +1970,14 @@ export default function MenuEditor() {
                       {/* Controls */}
                       <div style={{padding: '8px 8px 10px', display: 'flex', flexDirection: 'column', gap: 5}}>
                         {/* Photo type */}
-                        <select value={img.photo_type || ''} onChange={(e) => setGallery(gallery.map(g => g.id === img.id ? {...g, photo_type: e.target.value || null} : g))}
+                        <select value={img.photo_type || ''} onChange={(e) => {
+                          const newType = e.target.value || null;
+                          if ((newType === 'exterior' || newType === 'interior') && gallery.filter(g => g.photo_type === newType && g.id !== img.id).length >= 3) {
+                            alert(`Max 3 ${newType} photos — remove one first.`);
+                            return;
+                          }
+                          setGallery(gallery.map(g => g.id === img.id ? {...g, photo_type: newType} : g));
+                        }}
                           style={{width: '100%', padding: '5px 6px', background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, fontSize: 11}}>
                           <option value="">Type…</option>
                           <option value="food">🍽 Food</option>
