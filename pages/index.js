@@ -1886,6 +1886,20 @@ export default function MenuEditor() {
                   Menu items can pick from here too.
                 </p>
 
+                <div style={{background: 'linear-gradient(135deg, rgba(168,85,247,.18), rgba(168,85,247,.06))', border: '1px solid rgba(168,85,247,.35)', borderRadius: 12, padding: '14px 16px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap'}}>
+                  <div>
+                    <div style={{fontWeight: 800, fontSize: 14, color: '#e9d5ff'}}>📱 Trip Swipe — Free while it's open</div>
+                    <div style={{fontSize: 12, color: '#c4b5fd', marginTop: 2}}>
+                      {gallery.filter(g => g.type === 'Trip Swipe').length >= 10
+                        ? "You're set — all 10 spots filled."
+                        : 'Pick up to 10 of your best photos so tourists discover you when they swipe.'}
+                    </div>
+                  </div>
+                  <div style={{fontSize: 20, fontWeight: 900, color: '#a855f7', whiteSpace: 'nowrap'}}>
+                    {gallery.filter(g => g.type === 'Trip Swipe').length} / 10
+                  </div>
+                </div>
+
                 {/* Upload button */}
                 <label style={{display: 'block', width: '100%', padding: 14, background: uploadingImage ? '#334155' : '#0b7a75', color: 'white', border: 'none', borderRadius: 10, cursor: uploadingImage ? 'not-allowed' : 'pointer', fontWeight: 700, textAlign: 'center', boxSizing: 'border-box', fontSize: 15, marginBottom: 20}}>
                   {uploadProgress ? `Uploading ${uploadProgress.done} / ${uploadProgress.total}…` : '📤 Upload Photos (tap to select, multiple OK)'}
@@ -1929,7 +1943,8 @@ export default function MenuEditor() {
                       {/* Badge */}
                       {img.type === 'Hero' && <div style={{position: 'absolute', top: 6, left: 6, background: '#f59e0b', color: '#000', fontSize: 10, fontWeight: 900, padding: '2px 7px', borderRadius: 999}}>HERO</div>}
                       {img.is_cover && img.type !== 'Hero' && <div style={{position: 'absolute', top: 6, left: 6, background: '#22c55e', color: '#000', fontSize: 10, fontWeight: 900, padding: '2px 7px', borderRadius: 999}}>COVER</div>}
-                      {img.photo_type && <div style={{position: 'absolute', top: img.type === 'Hero' || img.is_cover ? 26 : 6, left: 6, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999}}>{img.photo_type}</div>}
+                      {img.type === 'Trip Swipe' && <div style={{position: 'absolute', top: img.type === 'Hero' || img.is_cover ? 26 : 6, left: 6, background: '#a855f7', color: '#fff', fontSize: 10, fontWeight: 900, padding: '2px 7px', borderRadius: 999}}>SWIPE</div>}
+                      {img.photo_type && <div style={{position: 'absolute', top: (img.type === 'Hero' || img.is_cover ? 26 : 6) + (img.type === 'Trip Swipe' ? 20 : 0), left: 6, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999}}>{img.photo_type}</div>}
 
                       {/* Delete */}
                       <button onClick={() => setGallery(gallery.filter(g => g.id !== img.id))} style={{position: 'absolute', top: 6, right: 6, background: 'rgba(220,38,38,.85)', color: 'white', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>✕</button>
@@ -1961,6 +1976,13 @@ export default function MenuEditor() {
                             🃏 Cover
                           </button>
                         </div>
+                        <button onClick={() => {
+                          const isSelected = img.type === 'Trip Swipe';
+                          if (!isSelected && gallery.filter(g => g.type === 'Trip Swipe').length >= 10) { alert('Max 10 photos for Trip Swipe — remove one first.'); return; }
+                          setGallery(gallery.map(g => g.id === img.id ? {...g, type: isSelected ? 'gallery' : 'Trip Swipe'} : g));
+                        }} style={{width: '100%', padding: '5px 2px', background: img.type === 'Trip Swipe' ? '#a855f7' : 'rgba(168,85,247,.12)', color: img.type === 'Trip Swipe' ? '#fff' : '#a855f7', border: '1px solid rgba(168,85,247,.4)', borderRadius: 6, fontSize: 10, fontWeight: 800, cursor: 'pointer'}}>
+                          {img.type === 'Trip Swipe' ? '📱 On Trip Swipe' : '📱 Add to Trip Swipe'}
+                        </button>
 
                         {/* Caption */}
                         <input value={img.label || ''} onChange={(e) => setGallery(gallery.map(g => g.id === img.id ? {...g, label: e.target.value} : g))}
