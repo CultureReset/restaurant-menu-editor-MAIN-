@@ -299,6 +299,10 @@ export default function MenuEditor() {
                   ...withItemDefaults(i),
                   name: i.name || i.item_name || '',
                   price: i.price != null ? String(i.price) : '',
+                  available: i.is_available !== false,
+                  catch_of_the_day: i.is_catch_of_day || false,
+                  market_price: i.has_market_price || false,
+                  on_tap: i.is_on_tap || false,
                 }))
               }));
 
@@ -1342,13 +1346,20 @@ export default function MenuEditor() {
                                 {item.images?.length > 0 && (
                                   <div style={{display: 'flex', gap: 6, marginTop: 8}}>
                                     {item.images.map((img, idx) => (
-                                      <div key={idx} style={{width: 40, height: 40, borderRadius: 4, overflow: 'hidden', position: 'relative'}}>
+                                      <div key={idx} style={{width: 40, height: 40, borderRadius: 4, overflow: 'hidden', position: 'relative', border: idx === 0 ? '2px solid #22c55e' : '1px solid rgba(255,255,255,.15)'}}>
                                         <img src={img.url} alt="item" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                                        {idx !== 0 && (
+                                          <button title="Make this the live photo" onClick={() => setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, menu_sections: a.menu_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => { if (i.id !== item.id) return i; const imgs = [...i.images]; const [picked] = imgs.splice(idx, 1); imgs.unshift(picked); return { ...i, images: imgs }; }) } : s) } : a))} style={{position: 'absolute', bottom: -2, left: -2, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 3, width: 14, height: 14, cursor: 'pointer', fontSize: 9, padding: 0, lineHeight: 1}}>★</button>
+                                        )}
                                         <button onClick={() => setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, menu_sections: a.menu_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => i.id === item.id ? { ...i, images: i.images.filter((_, j) => j !== idx) } : i) } : s) } : a))} style={{position: 'absolute', top: -4, right: -4, background: '#dc2626', color: 'white', border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 10, padding: 0}}>✕</button>
                                       </div>
                                     ))}
                                   </div>
                                 )}
+                                <div style={{display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap'}}>
+                                  <button onClick={() => setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, menu_sections: a.menu_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => i.id === item.id ? { ...i, catch_of_the_day: !i.catch_of_the_day } : i) } : s) } : a))} style={{padding: '4px 8px', background: item.catch_of_the_day ? '#0ea5e9' : 'rgba(255,255,255,.06)', color: item.catch_of_the_day ? 'white' : '#94a3b8', border: '1px solid rgba(255,255,255,.15)', borderRadius: 999, cursor: 'pointer', fontSize: 11, fontWeight: 700}}>🎣 Catch of the Day</button>
+                                  <button onClick={() => setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, menu_sections: a.menu_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => i.id === item.id ? { ...i, available: i.available === false } : i) } : s) } : a))} style={{padding: '4px 8px', background: item.available === false ? '#dc2626' : 'rgba(255,255,255,.06)', color: item.available === false ? 'white' : '#94a3b8', border: '1px solid rgba(255,255,255,.15)', borderRadius: 999, cursor: 'pointer', fontSize: 11, fontWeight: 700}}>{item.available === false ? '🚫 Sold Out' : '✓ Available'}</button>
+                                </div>
                               </div>
                               <div style={{display: 'flex', gap: 6}}>
                                 <button onClick={() => setEditingItem(item)} style={{padding: '6px 10px', background: '#0b7a75', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>Edit</button>
@@ -1368,7 +1379,12 @@ export default function MenuEditor() {
                                     <p style={{margin: '0 0 8px 0', fontSize: 12, color: '#94a3b8'}}>Or select from gallery:</p>
                                     <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(50px, 1fr))', gap: 8}}>
                                       {gallery.map(img => (
-                                        <button key={img.id} onClick={() => { setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, menu_sections: a.menu_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => i.id === item.id ? { ...i, images: [...(i.images || []), { url: img.url, label: img.type }] } : i) } : s) } : a)); setShowGallerySelector(null); }} style={{width: '100%', padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 4, overflow: 'hidden'}}>
+                                        <button key={img.id} onClick={() => {
+                                          const current = item.images || [];
+                                          if (current.length >= 3) { alert('Max 3 photos per item — remove one first.'); return; }
+                                          setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, menu_sections: a.menu_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => i.id === item.id ? { ...i, images: [...(i.images || []), { url: img.url, label: img.type }] } : i) } : s) } : a));
+                                          setShowGallerySelector(null);
+                                        }} style={{width: '100%', padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 4, overflow: 'hidden'}}>
                                           <img src={img.url} alt="gallery" style={{width: '100%', height: 50, objectFit: 'cover', borderRadius: 4}} />
                                         </button>
                                       ))}
@@ -1477,13 +1493,20 @@ export default function MenuEditor() {
                                 {item.images?.length > 0 && (
                                   <div style={{display: 'flex', gap: 6, marginTop: 8}}>
                                     {item.images.map((img, idx) => (
-                                      <div key={idx} style={{width: 40, height: 40, borderRadius: 4, overflow: 'hidden', position: 'relative'}}>
+                                      <div key={idx} style={{width: 40, height: 40, borderRadius: 4, overflow: 'hidden', position: 'relative', border: idx === 0 ? '2px solid #22c55e' : '1px solid rgba(255,255,255,.15)'}}>
                                         <img src={img.url} alt="item" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+                                        {idx !== 0 && (
+                                          <button title="Make this the live photo" onClick={() => setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, drink_sections: a.drink_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => { if (i.id !== item.id) return i; const imgs = [...i.images]; const [picked] = imgs.splice(idx, 1); imgs.unshift(picked); return { ...i, images: imgs }; }) } : s) } : a))} style={{position: 'absolute', bottom: -2, left: -2, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 3, width: 14, height: 14, cursor: 'pointer', fontSize: 9, padding: 0, lineHeight: 1}}>★</button>
+                                        )}
                                         <button onClick={() => setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, drink_sections: a.drink_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => i.id === item.id ? { ...i, images: i.images.filter((_, j) => j !== idx) } : i) } : s) } : a))} style={{position: 'absolute', top: -4, right: -4, background: '#dc2626', color: 'white', border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 10, padding: 0}}>✕</button>
                                       </div>
                                     ))}
                                   </div>
                                 )}
+                                <div style={{display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap'}}>
+                                  <button onClick={() => setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, drink_sections: a.drink_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => i.id === item.id ? { ...i, on_tap: !i.on_tap } : i) } : s) } : a))} style={{padding: '4px 8px', background: item.on_tap ? '#0ea5e9' : 'rgba(255,255,255,.06)', color: item.on_tap ? 'white' : '#94a3b8', border: '1px solid rgba(255,255,255,.15)', borderRadius: 999, cursor: 'pointer', fontSize: 11, fontWeight: 700}}>🍺 On Tap</button>
+                                  <button onClick={() => setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, drink_sections: a.drink_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => i.id === item.id ? { ...i, available: i.available === false } : i) } : s) } : a))} style={{padding: '4px 8px', background: item.available === false ? '#dc2626' : 'rgba(255,255,255,.06)', color: item.available === false ? 'white' : '#94a3b8', border: '1px solid rgba(255,255,255,.15)', borderRadius: 999, cursor: 'pointer', fontSize: 11, fontWeight: 700}}>{item.available === false ? '🚫 Sold Out' : '✓ Available'}</button>
+                                </div>
                               </div>
                               <div style={{display: 'flex', gap: 6}}>
                                 <button onClick={() => setEditingItem(item)} style={{padding: '6px 10px', background: '#0b7a75', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>Edit</button>
@@ -1503,7 +1526,12 @@ export default function MenuEditor() {
                                     <p style={{margin: '0 0 8px 0', fontSize: 12, color: '#94a3b8'}}>Or select from gallery:</p>
                                     <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(50px, 1fr))', gap: 8}}>
                                       {gallery.map(img => (
-                                        <button key={img.id} onClick={() => { setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, drink_sections: a.drink_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => i.id === item.id ? { ...i, images: [...(i.images || []), { url: img.url, label: img.type }] } : i) } : s) } : a)); setShowGallerySelector(null); }} style={{width: '100%', padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 4, overflow: 'hidden'}}>
+                                        <button key={img.id} onClick={() => {
+                                          const current = item.images || [];
+                                          if (current.length >= 3) { alert('Max 3 photos per item — remove one first.'); return; }
+                                          setAreas(areas.map(a => a.id === selectedAreaId ? { ...a, drink_sections: a.drink_sections.map(s => s.id === section.id ? { ...s, items: s.items.map(i => i.id === item.id ? { ...i, images: [...(i.images || []), { url: img.url, label: img.type }] } : i) } : s) } : a));
+                                          setShowGallerySelector(null);
+                                        }} style={{width: '100%', padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 4, overflow: 'hidden'}}>
                                           <img src={img.url} alt="gallery" style={{width: '100%', height: 50, objectFit: 'cover', borderRadius: 4}} />
                                         </button>
                                       ))}
