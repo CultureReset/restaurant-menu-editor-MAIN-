@@ -41,13 +41,50 @@ export default function MenuEditor() {
   // business-type-aware manifest) — falls back to the full restaurant set so
   // an old cached session or a backend that hasn't deployed the manifest yet
   // still shows something instead of an empty tab bar.
-  const [visibleTabs, setVisibleTabs] = useState(['today', 'menu', 'drinks', 'specials', 'sides', 'daily', 'events', 'happyHour', 'hours', 'dailyFeatures', 'gallery', 'preview', 'business']);
+  const [visibleTabs, setVisibleTabs] = useState(['today', 'menu', 'drinks', 'specials', 'sides', 'daily', 'events', 'happyHour', 'hours', 'dailyFeatures', 'gallery', 'share', 'preview', 'business']);
   const [entityType, setEntityType] = useState({ entity_type: null, entity_subtype: null });
   const [availability, setAvailability] = useState([]);
   const [fuelOptions, setFuelOptions] = useState([]);
   const [newAvailability, setNewAvailability] = useState({ availability_date: '', time_slot: '', end_time: '', total_capacity: '', booked_count: '0', last_minute_deal: '', last_minute_price: '' });
   const [staff, setStaff] = useState([]);
   const [newStaff, setNewStaff] = useState({ phone: '', name: '', role: 'staff' });
+  const [shareImageUrl, setShareImageUrl] = useState('');
+  const [shareCaption, setShareCaption] = useState('');
+  const [sharing, setSharing] = useState(false);
+  const canWebShare = typeof navigator !== 'undefined' && !!navigator.share;
+
+  // Compose once, hand off to whatever the OS share sheet offers (Facebook,
+  // Instagram, Messages, etc) — a human still taps Post on their end. This is
+  // deliberately NOT server-side automated posting: Meta/TikTok's actual
+  // publish APIs require their own app-review approval, which is a business
+  // decision outside what this editor can grant on its own. Falls back to
+  // clipboard + a Facebook link-share + manual download on desktop browsers
+  // that don't support the Web Share API (or don't support sharing files
+  // through it, which not all mobile browsers do either).
+  async function handleShare() {
+    if (!shareImageUrl) { alert('Pick a photo first'); return; }
+    setSharing(true);
+    try {
+      if (canWebShare) {
+        const shareData = { title: business.name || 'Update', text: shareCaption };
+        try {
+          const resp = await fetch(shareImageUrl);
+          const blob = await resp.blob();
+          const file = new File([blob], 'post.jpg', { type: blob.type || 'image/jpeg' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) shareData.files = [file];
+        } catch {}
+        await navigator.share(shareData);
+      } else {
+        try { await navigator.clipboard.writeText(shareCaption); } catch {}
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareImageUrl)}`, '_blank');
+        alert("Caption copied to clipboard and Facebook share opened in a new tab. Instagram and TikTok don't support pre-filled posts from a website — download the photo below and paste the caption in manually.");
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') alert('Share failed: ' + err.message);
+    } finally {
+      setSharing(false);
+    }
+  }
 
   const [rotatingSections, setRotatingSections] = useState([]);
   const [editingRotatingSection, setEditingRotatingSection] = useState(null);
@@ -1134,7 +1171,7 @@ export default function MenuEditor() {
           <div style={{display: 'flex', gap: 8, padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,.1)', overflowX: 'auto'}}>
             {visibleTabs.map(t => (
               <button key={t} onClick={() => { setTab(t); setEditingItem(null); setNewItem(createBlankItem()); }} style={{padding: '8px 12px', background: tab === t ? '#0b7a75' : '#1e293b', color: '#f1f5f9', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: tab === t ? 600 : 400, whiteSpace: 'nowrap'}}>
-                {t === 'today' && '⚡'}{t === 'menu' && '🍽️'}{t === 'drinks' && '🥤'}{t === 'specials' && '⭐'}{t === 'sides' && '➕'}{t === 'daily' && '📅'}{t === 'events' && '🎉'}{t === 'happyHour' && '🍹'}{t === 'hours' && '🕐'}{t === 'dailyFeatures' && '🎣'}{t === 'gallery' && '📷'}{t === 'preview' && '👁️'}{t === 'business' && '🌐'}{t === 'availability' && '📆'}{t === 'fuel' && '⛽'}
+                {t === 'today' && '⚡'}{t === 'menu' && '🍽️'}{t === 'drinks' && '🥤'}{t === 'specials' && '⭐'}{t === 'sides' && '➕'}{t === 'daily' && '📅'}{t === 'events' && '🎉'}{t === 'happyHour' && '🍹'}{t === 'hours' && '🕐'}{t === 'dailyFeatures' && '🎣'}{t === 'gallery' && '📷'}{t === 'preview' && '👁️'}{t === 'business' && '🌐'}{t === 'availability' && '📆'}{t === 'fuel' && '⛽'}{t === 'share' && '📣'}
               </button>
             ))}
           </div>
@@ -2247,6 +2284,36 @@ export default function MenuEditor() {
                     if (res.ok) alert('Fuel prices updated'); else alert('Failed to save');
                   } catch (err) { alert('Error: ' + err.message); }
                 }} style={{width: '100%', padding: 12, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700}}>💾 Save Fuel Prices</button>
+              </>
+            )}
+
+            {/* SHARE TAB — compose once, hand off to the OS share sheet */}
+            {tab === 'share' && (
+              <>
+                <h2>Share to Social</h2>
+                <p style={{fontSize: 13, color: '#94a3b8', marginTop: -6, marginBottom: 16}}>Pick a photo and write a caption, then hit Share — you pick Facebook, Instagram, or whatever else shows up, and post it yourself from there. This doesn't post anything automatically on its own.</p>
+
+                <div style={{background: '#1e293b', padding: 16, borderRadius: 8}}>
+                  <p style={{margin: '0 0 8px 0', fontSize: 12, color: '#94a3b8'}}>Choose a photo:</p>
+                  {gallery.length === 0 && <p style={{color: '#64748b', fontSize: 13}}>Upload photos in the Gallery tab first.</p>}
+                  <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))', gap: 8, marginBottom: 16}}>
+                    {gallery.map(img => (
+                      <button key={img.id} onClick={() => setShareImageUrl(img.url)} style={{padding: 0, background: 'transparent', border: shareImageUrl === img.url ? '3px solid #0b7a75' : '3px solid transparent', borderRadius: 6, cursor: 'pointer', overflow: 'hidden'}}>
+                        <img src={img.url} alt="gallery" style={{width: '100%', height: 70, objectFit: 'cover', display: 'block'}} />
+                      </button>
+                    ))}
+                  </div>
+
+                  <textarea placeholder="Write your caption..." value={shareCaption} onChange={(e) => setShareCaption(e.target.value)} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, height: 90, marginBottom: 12}} />
+
+                  <button onClick={handleShare} disabled={sharing || !shareImageUrl} style={{width: '100%', padding: 12, background: (sharing || !shareImageUrl) ? '#64748b' : '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: (sharing || !shareImageUrl) ? 'not-allowed' : 'pointer', fontWeight: 700, marginBottom: 8}}>
+                    {sharing ? 'Opening…' : canWebShare ? '📣 Share…' : '📣 Share to Facebook + Copy Caption'}
+                  </button>
+
+                  {shareImageUrl && (
+                    <a href={shareImageUrl} download target="_blank" rel="noreferrer" style={{display: 'block', textAlign: 'center', fontSize: 12, color: '#94a3b8', marginTop: 8}}>⬇ Download this photo (for Instagram/TikTok — they don't accept pre-filled posts from a website)</a>
+                  )}
+                </div>
               </>
             )}
 
