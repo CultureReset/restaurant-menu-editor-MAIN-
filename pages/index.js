@@ -483,6 +483,25 @@ export default function MenuEditor() {
     return data.url;
   };
 
+  // Shared by the "Upload Photos" (library, multiple) and "Quick Photo"
+  // (camera, one shot) buttons in the Gallery tab — each upload goes through
+  // /upload, which now AI-tags it in the background on its own.
+  const uploadGalleryFiles = async (files, inputEvent) => {
+    if (!files.length) return;
+    setUploadingImage(true);
+    setUploadProgress({ done: 0, total: files.length });
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const url = await uploadSingleImage(files[i]);
+        setGallery(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), url, type: 'gallery', photo_type: null, label: '', is_cover: false }]);
+      } catch {}
+      setUploadProgress({ done: i + 1, total: files.length });
+    }
+    setUploadingImage(false);
+    setUploadProgress(null);
+    if (inputEvent?.target) inputEvent.target.value = '';
+  };
+
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -2018,32 +2037,20 @@ export default function MenuEditor() {
                   </div>
                 )}
 
-                {/* Upload button */}
-                <label style={{display: 'block', width: '100%', padding: 14, background: uploadingImage ? '#334155' : '#0b7a75', color: 'white', border: 'none', borderRadius: 10, cursor: uploadingImage ? 'not-allowed' : 'pointer', fontWeight: 700, textAlign: 'center', boxSizing: 'border-box', fontSize: 15, marginBottom: 20}}>
-                  {uploadProgress ? `Uploading ${uploadProgress.done} / ${uploadProgress.total}…` : '📤 Upload Photos (tap to select, multiple OK)'}
-                  <input type="file" accept="image/*" multiple disabled={uploadingImage} onChange={async (e) => {
-                    const files = Array.from(e.target.files);
-                    if (!files.length) return;
-                    setUploadingImage(true);
-                    setUploadProgress({ done: 0, total: files.length });
-                    for (let i = 0; i < files.length; i++) {
-                      try {
-                        const fd = new FormData();
-                        fd.append('image', files[i]);
-                        fd.append('type', 'gallery');
-                        const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/upload`, {
-                          method: 'POST', headers: { 'x-menu-token': token }, body: fd,
-                        });
-                        const d = await res.json();
-                        if (d.url) setGallery(prev => [...prev, { id: d.id || Math.random().toString(36).substr(2,9), url: d.url, type: 'gallery', photo_type: null, label: '', is_cover: false }]);
-                      } catch {}
-                      setUploadProgress({ done: i + 1, total: files.length });
-                    }
-                    setUploadingImage(false);
-                    setUploadProgress(null);
-                    e.target.value = '';
-                  }} style={{display: 'none'}} />
-                </label>
+                {/* Upload buttons — library picker (multiple) or straight to
+                    the phone's camera (one shot at a time, but no picker to
+                    dig through — snap, it uploads and AI-tags itself in the
+                    background, ready for the next one immediately). */}
+                <div style={{display: 'flex', gap: 10, marginBottom: 20}}>
+                  <label style={{flex: 1, display: 'block', padding: 14, background: uploadingImage ? '#334155' : '#0b7a75', color: 'white', border: 'none', borderRadius: 10, cursor: uploadingImage ? 'not-allowed' : 'pointer', fontWeight: 700, textAlign: 'center', boxSizing: 'border-box', fontSize: 15}}>
+                    {uploadProgress ? `Uploading ${uploadProgress.done} / ${uploadProgress.total}…` : '📤 Upload Photos'}
+                    <input type="file" accept="image/*" multiple disabled={uploadingImage} onChange={(e) => uploadGalleryFiles(Array.from(e.target.files), e)} style={{display: 'none'}} />
+                  </label>
+                  <label style={{flex: 1, display: 'block', padding: 14, background: uploadingImage ? '#334155' : '#7c3aed', color: 'white', border: 'none', borderRadius: 10, cursor: uploadingImage ? 'not-allowed' : 'pointer', fontWeight: 700, textAlign: 'center', boxSizing: 'border-box', fontSize: 15}}>
+                    📸 Quick Photo
+                    <input type="file" accept="image/*" capture="environment" disabled={uploadingImage} onChange={(e) => uploadGalleryFiles(Array.from(e.target.files), e)} style={{display: 'none'}} />
+                  </label>
+                </div>
 
                 {/* All photos grid */}
                 {gallery.length === 0 && (
