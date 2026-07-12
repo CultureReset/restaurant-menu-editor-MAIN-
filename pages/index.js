@@ -46,6 +46,8 @@ export default function MenuEditor() {
   const [availability, setAvailability] = useState([]);
   const [fuelOptions, setFuelOptions] = useState([]);
   const [newAvailability, setNewAvailability] = useState({ availability_date: '', time_slot: '', end_time: '', total_capacity: '', booked_count: '0', last_minute_deal: '', last_minute_price: '' });
+  const [staff, setStaff] = useState([]);
+  const [newStaff, setNewStaff] = useState({ phone: '', name: '', role: 'staff' });
 
   const [rotatingSections, setRotatingSections] = useState([]);
   const [editingRotatingSection, setEditingRotatingSection] = useState(null);
@@ -304,6 +306,12 @@ export default function MenuEditor() {
               setTab(menuData.tabs[0]);
             }
             setAvailability(menuData.availability || []);
+
+            // Staff list isn't part of /data (it's not menu content) — load separately.
+            try {
+              const staffRes = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/staff`, { headers: { 'x-menu-token': data.token } });
+              if (staffRes.ok) { const s = await staffRes.json(); setStaff(s.staff || []); }
+            } catch {}
 
             // Create an area with the menu data
             if (menuData.menu_sections || menuData.drink_sections || menuData.hours) {
@@ -2276,6 +2284,50 @@ export default function MenuEditor() {
                     ))}
                   </div>
                   <button onClick={() => setTheme({ primary: '#0b7a75', accent: '#f0a500', bg: '#f7f7f7', surface: '#ffffff', text: '#111111' })} style={{width: '100%', marginTop: 12, padding: 8, background: '#334155', color: '#94a3b8', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12}}>↺ Reset to Default Colors</button>
+                </div>
+
+                <div style={{background: '#1e293b', padding: 16, borderRadius: 8, marginTop: 16}}>
+                  <h3 style={{margin: '0 0 4px 0', color: '#f1f5f9'}}>📱 Staff Text Access</h3>
+                  <p style={{margin: '0 0 16px 0', fontSize: 12, color: '#64748b'}}>Add a phone number to let someone text quick toggles to this number — SOLD OUT, ON TAP, CATCH OF DAY, etc — without giving them the full PIN. Only people you add here are recognized.</p>
+                  <div style={{display: 'flex', gap: 8, marginBottom: 12}}>
+                    <input type="tel" placeholder="Phone number" value={newStaff.phone} onChange={(e) => setNewStaff({...newStaff, phone: e.target.value})} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
+                    <input type="text" placeholder="Name" value={newStaff.name} onChange={(e) => setNewStaff({...newStaff, name: e.target.value})} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
+                    <select value={newStaff.role} onChange={(e) => setNewStaff({...newStaff, role: e.target.value})} style={{padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}}>
+                      <option value="owner">Owner</option>
+                      <option value="manager">Manager</option>
+                      <option value="staff">Staff (toggle-only)</option>
+                    </select>
+                  </div>
+                  <button onClick={async () => {
+                    if (!newStaff.phone.trim()) { alert('Phone number required'); return; }
+                    try {
+                      const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/staff`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-menu-token': token },
+                        body: JSON.stringify(newStaff),
+                      });
+                      const row = await res.json();
+                      if (res.ok) {
+                        setStaff(prev => [...prev.filter(s => s.id !== row.id), row]);
+                        setNewStaff({ phone: '', name: '', role: 'staff' });
+                      } else alert(row.error || 'Failed to add');
+                    } catch (err) { alert('Error: ' + err.message); }
+                  }} style={{width: '100%', padding: 10, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, marginBottom: 12}}>+ Add Staff Number</button>
+
+                  {staff.filter(s => s.is_active).map(s => (
+                    <div key={s.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderTop: '1px solid rgba(255,255,255,.08)'}}>
+                      <div>
+                        <strong>{s.name || s.phone}</strong>{s.name && <span style={{color: '#64748b', fontSize: 12}}> · {s.phone}</span>}
+                        <div style={{fontSize: 11, color: '#94a3b8', textTransform: 'uppercase'}}>{s.role}</div>
+                      </div>
+                      <button onClick={async () => {
+                        if (!confirm(`Remove ${s.name || s.phone}?`)) return;
+                        try {
+                          await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/staff/${s.id}`, { method: 'DELETE', headers: { 'x-menu-token': token } });
+                          setStaff(prev => prev.map(x => x.id === s.id ? {...x, is_active: false} : x));
+                        } catch {}
+                      }} style={{padding: '6px 10px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>Remove</button>
+                    </div>
+                  ))}
                 </div>
               </>
             )}
