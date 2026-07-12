@@ -37,6 +37,16 @@ export default function MenuEditor() {
   const [tab, setTab] = useState('menu');
 
   // Rotating sections (Beer on Tap, Catch of the Day, etc)
+  // Which tabs actually apply to this business (from the /data response's
+  // business-type-aware manifest) — falls back to the full restaurant set so
+  // an old cached session or a backend that hasn't deployed the manifest yet
+  // still shows something instead of an empty tab bar.
+  const [visibleTabs, setVisibleTabs] = useState(['today', 'menu', 'drinks', 'specials', 'sides', 'daily', 'events', 'happyHour', 'hours', 'dailyFeatures', 'gallery', 'preview', 'business']);
+  const [entityType, setEntityType] = useState({ entity_type: null, entity_subtype: null });
+  const [availability, setAvailability] = useState([]);
+  const [fuelOptions, setFuelOptions] = useState([]);
+  const [newAvailability, setNewAvailability] = useState({ availability_date: '', time_slot: '', end_time: '', total_capacity: '', booked_count: '0', last_minute_deal: '', last_minute_price: '' });
+
   const [rotatingSections, setRotatingSections] = useState([]);
   const [editingRotatingSection, setEditingRotatingSection] = useState(null);
   const [newRotatingSectionName, setNewRotatingSectionName] = useState('');
@@ -83,7 +93,7 @@ export default function MenuEditor() {
 
   // Image upload
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [imageLabel, setImageLabel] = useState('Grilled');
+  const [imageLabel, setImageLabel] = useState('');
   const fileInputRef = useRef(null);
   const galleryInputRef = useRef(null);
 
@@ -286,7 +296,14 @@ export default function MenuEditor() {
                 address: menuData.entity.address_line_1 || '',
                 about: menuData.entity.description || ''
               });
+              setEntityType({ entity_type: menuData.entity.entity_type || null, entity_subtype: menuData.entity.entity_subtype || null });
+              setFuelOptions(Array.isArray(menuData.entity.fuel_options) ? menuData.entity.fuel_options : []);
             }
+            if (Array.isArray(menuData.tabs) && menuData.tabs.length) {
+              setVisibleTabs(menuData.tabs);
+              setTab(menuData.tabs[0]);
+            }
+            setAvailability(menuData.availability || []);
 
             // Create an area with the menu data
             if (menuData.menu_sections || menuData.drink_sections || menuData.hours) {
@@ -439,7 +456,7 @@ export default function MenuEditor() {
       } else {
         setNewItem(prev => ({ ...prev, images: [...(prev.images || []), ...uploaded] }));
       }
-      setImageLabel('Grilled');
+      setImageLabel('');
     } catch (err) {
       alert('Error uploading image: ' + err.message);
     } finally {
@@ -592,6 +609,20 @@ export default function MenuEditor() {
       setEditingItem({ ...editingItem, images: (editingItem.images || []).filter((_, i) => i !== imageIndex) });
     } else {
       setNewItem({ ...newItem, images: (newItem.images || []).filter((_, i) => i !== imageIndex) });
+    }
+  };
+
+  // Reuse an already-uploaded gallery photo on a flat-shaped item (specials,
+  // sides, daily features, events, happy hour) instead of re-uploading —
+  // mirrors what the section-based pickers already do for menu/drink items.
+  const pickGalleryImageForFlatItem = (img) => {
+    const target = editingItem ? editingItem : newItem;
+    if ((target.images || []).length >= 3) { alert('Max 3 photos per item — remove one first.'); return; }
+    const entry = { url: img.url, label: img.label || img.photo_type || img.type || '' };
+    if (editingItem) {
+      setEditingItem({ ...editingItem, images: [...(editingItem.images || []), entry] });
+    } else {
+      setNewItem({ ...newItem, images: [...(newItem.images || []), entry] });
     }
   };
 
@@ -818,13 +849,7 @@ export default function MenuEditor() {
         ))}
       </div>
       <div style={{display: 'flex', gap: 8}}>
-        <select value={imageLabel} onChange={(e) => setImageLabel(e.target.value)} style={{flex: 1, padding: 8, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}}>
-          <option>Grilled</option>
-          <option>Blackened</option>
-          <option>Fried</option>
-          <option>Steamed</option>
-          <option>Baked</option>
-        </select>
+        <input type="text" placeholder="Photo label (optional)" value={imageLabel} onChange={(e) => setImageLabel(e.target.value)} style={{flex: 1, padding: 8, background: '#1e293b', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
         <button onClick={editingItem ? () => updateFlatItem(targetField) : () => addFlatItem(targetField)} style={{flex: 1, padding: 8, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer'}}>
           {editingItem ? 'Update' : 'Save Item'}
         </button>
@@ -1099,9 +1124,9 @@ export default function MenuEditor() {
           </div>
 
           <div style={{display: 'flex', gap: 8, padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,.1)', overflowX: 'auto'}}>
-            {['today', 'menu', 'drinks', 'specials', 'sides', 'daily', 'events', 'happyHour', 'hours', 'dailyFeatures', 'gallery', 'preview', 'business'].map(t => (
+            {visibleTabs.map(t => (
               <button key={t} onClick={() => { setTab(t); setEditingItem(null); setNewItem(createBlankItem()); }} style={{padding: '8px 12px', background: tab === t ? '#0b7a75' : '#1e293b', color: '#f1f5f9', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: tab === t ? 600 : 400, whiteSpace: 'nowrap'}}>
-                {t === 'today' && '⚡'}{t === 'menu' && '🍽️'}{t === 'drinks' && '🥤'}{t === 'specials' && '⭐'}{t === 'sides' && '➕'}{t === 'daily' && '📅'}{t === 'events' && '🎉'}{t === 'happyHour' && '🍹'}{t === 'hours' && '🕐'}{t === 'dailyFeatures' && '🎣'}{t === 'gallery' && '📷'}{t === 'preview' && '👁️'}{t === 'business' && '🌐'}
+                {t === 'today' && '⚡'}{t === 'menu' && '🍽️'}{t === 'drinks' && '🥤'}{t === 'specials' && '⭐'}{t === 'sides' && '➕'}{t === 'daily' && '📅'}{t === 'events' && '🎉'}{t === 'happyHour' && '🍹'}{t === 'hours' && '🕐'}{t === 'dailyFeatures' && '🎣'}{t === 'gallery' && '📷'}{t === 'preview' && '👁️'}{t === 'business' && '🌐'}{t === 'availability' && '📆'}{t === 'fuel' && '⛽'}
               </button>
             ))}
           </div>
@@ -1567,6 +1592,18 @@ export default function MenuEditor() {
                     </label>
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
                     <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{display: 'none'}} />
+                    {gallery.length > 0 && (
+                      <>
+                        <p style={{margin: '0 0 8px 0', fontSize: 12, color: '#94a3b8'}}>Or select from gallery:</p>
+                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(50px, 1fr))', gap: 8, marginBottom: 10}}>
+                          {gallery.map(img => (
+                            <button key={img.id} onClick={() => pickGalleryImageForFlatItem(img)} style={{width: '100%', padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 4, overflow: 'hidden'}}>
+                              <img src={img.url} alt="gallery" style={{width: '100%', height: 50, objectFit: 'cover', borderRadius: 4}} />
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
                       {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
@@ -1576,13 +1613,7 @@ export default function MenuEditor() {
                       ))}
                     </div>
                     <div style={{display: 'flex', gap: 8}}>
-                      <select value={imageLabel} onChange={(e) => setImageLabel(e.target.value)} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}}>
-                        <option>Grilled</option>
-                        <option>Blackened</option>
-                        <option>Fried</option>
-                        <option>Steamed</option>
-                        <option>Baked</option>
-                      </select>
+                      <input type="text" placeholder="Photo label (optional)" value={imageLabel} onChange={(e) => setImageLabel(e.target.value)} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
                       <button onClick={editingItem ? () => { updateFlatItem('specials'); setExpandedAddForm(null); } : () => { addFlatItem('specials'); setExpandedAddForm(null); }} style={{flex: 1, padding: 10, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600}}>
                         {editingItem ? 'Update' : 'Save'}
                       </button>
@@ -1617,6 +1648,18 @@ export default function MenuEditor() {
                     <input type="text" placeholder={editingItem?.type === 'addon' || newItem.type === 'addon' ? "Price (e.g. +$1.50)" : "Price (e.g. $3.00)"} value={editingItem ? editingItem.price : newItem.price} onChange={(e) => editingItem ? setEditingItem({...editingItem, price: e.target.value}) : setNewItem({...newItem, price: e.target.value})} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6, marginBottom: 10}} />
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
                     <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{display: 'none'}} />
+                    {gallery.length > 0 && (
+                      <>
+                        <p style={{margin: '0 0 8px 0', fontSize: 12, color: '#94a3b8'}}>Or select from gallery:</p>
+                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(50px, 1fr))', gap: 8, marginBottom: 10}}>
+                          {gallery.map(img => (
+                            <button key={img.id} onClick={() => pickGalleryImageForFlatItem(img)} style={{width: '100%', padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 4, overflow: 'hidden'}}>
+                              <img src={img.url} alt="gallery" style={{width: '100%', height: 50, objectFit: 'cover', borderRadius: 4}} />
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
                       {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
@@ -1626,13 +1669,7 @@ export default function MenuEditor() {
                       ))}
                     </div>
                     <div style={{display: 'flex', gap: 8}}>
-                      <select value={imageLabel} onChange={(e) => setImageLabel(e.target.value)} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}}>
-                        <option>Grilled</option>
-                        <option>Blackened</option>
-                        <option>Fried</option>
-                        <option>Steamed</option>
-                        <option>Baked</option>
-                      </select>
+                      <input type="text" placeholder="Photo label (optional)" value={imageLabel} onChange={(e) => setImageLabel(e.target.value)} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
                       <button onClick={editingItem ? () => { updateFlatItem('sides'); setExpandedAddForm(null); } : () => { addFlatItem('sides'); setExpandedAddForm(null); }} style={{flex: 1, padding: 10, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600}}>
                         {editingItem ? 'Update' : 'Save'}
                       </button>
@@ -1727,6 +1764,18 @@ export default function MenuEditor() {
                     </label>
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
                     <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{display: 'none'}} />
+                    {gallery.length > 0 && (
+                      <>
+                        <p style={{margin: '0 0 8px 0', fontSize: 12, color: '#94a3b8'}}>Or select from gallery:</p>
+                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(50px, 1fr))', gap: 8, marginBottom: 10}}>
+                          {gallery.map(img => (
+                            <button key={img.id} onClick={() => pickGalleryImageForFlatItem(img)} style={{width: '100%', padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 4, overflow: 'hidden'}}>
+                              <img src={img.url} alt="gallery" style={{width: '100%', height: 50, objectFit: 'cover', borderRadius: 4}} />
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
                       {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
@@ -1736,13 +1785,7 @@ export default function MenuEditor() {
                       ))}
                     </div>
                     <div style={{display: 'flex', gap: 8}}>
-                      <select value={imageLabel} onChange={(e) => setImageLabel(e.target.value)} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}}>
-                        <option>Grilled</option>
-                        <option>Blackened</option>
-                        <option>Fried</option>
-                        <option>Steamed</option>
-                        <option>Baked</option>
-                      </select>
+                      <input type="text" placeholder="Photo label (optional)" value={imageLabel} onChange={(e) => setImageLabel(e.target.value)} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
                       <button onClick={editingItem ? () => { updateFlatItem('events'); setExpandedAddForm(null); } : () => { addFlatItem('events'); setExpandedAddForm(null); }} style={{flex: 1, padding: 10, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600}}>
                         {editingItem ? 'Update' : 'Save'}
                       </button>
@@ -1787,6 +1830,18 @@ export default function MenuEditor() {
                     </label>
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
                     <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{display: 'none'}} />
+                    {gallery.length > 0 && (
+                      <>
+                        <p style={{margin: '0 0 8px 0', fontSize: 12, color: '#94a3b8'}}>Or select from gallery:</p>
+                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(50px, 1fr))', gap: 8, marginBottom: 10}}>
+                          {gallery.map(img => (
+                            <button key={img.id} onClick={() => pickGalleryImageForFlatItem(img)} style={{width: '100%', padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 4, overflow: 'hidden'}}>
+                              <img src={img.url} alt="gallery" style={{width: '100%', height: 50, objectFit: 'cover', borderRadius: 4}} />
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
                       {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
@@ -1796,13 +1851,7 @@ export default function MenuEditor() {
                       ))}
                     </div>
                     <div style={{display: 'flex', gap: 8}}>
-                      <select value={imageLabel} onChange={(e) => setImageLabel(e.target.value)} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}}>
-                        <option>Grilled</option>
-                        <option>Blackened</option>
-                        <option>Fried</option>
-                        <option>Steamed</option>
-                        <option>Baked</option>
-                      </select>
+                      <input type="text" placeholder="Photo label (optional)" value={imageLabel} onChange={(e) => setImageLabel(e.target.value)} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
                       <button onClick={editingItem ? () => { const updated = happyHour.map(item => item.id === editingItem.id ? withItemDefaults(editingItem) : item); setHappyHour(updated); setEditingItem(null); setExpandedAddForm(null); } : () => { const item = withItemDefaults({ id: Math.random().toString(36).substr(2, 9), ...newItem, images: newItem.images || [], active: newItem.active }); setHappyHour([...happyHour, item]); setNewItem(createBlankItem()); setExpandedAddForm(null); }} style={{flex: 1, padding: 10, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600}}>
                         {editingItem ? 'Update' : 'Save'}
                       </button>
@@ -1847,6 +1896,18 @@ export default function MenuEditor() {
                     </label>
                     <button onClick={() => fileInputRef.current?.click()} style={{width: '100%', padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 10}}>📤 Add Image</button>
                     <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} style={{display: 'none'}} />
+                    {gallery.length > 0 && (
+                      <>
+                        <p style={{margin: '0 0 8px 0', fontSize: 12, color: '#94a3b8'}}>Or select from gallery:</p>
+                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(50px, 1fr))', gap: 8, marginBottom: 10}}>
+                          {gallery.map(img => (
+                            <button key={img.id} onClick={() => pickGalleryImageForFlatItem(img)} style={{width: '100%', padding: 0, background: 'transparent', border: 'none', cursor: 'pointer', borderRadius: 4, overflow: 'hidden'}}>
+                              <img src={img.url} alt="gallery" style={{width: '100%', height: 50, objectFit: 'cover', borderRadius: 4}} />
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                     <div style={{display: 'flex', gap: 8, marginBottom: 10}}>
                       {(editingItem ? (editingItem.images || []) : (newItem.images || [])).map((img, idx) => (
                         <div key={idx} style={{position: 'relative', width: 50, height: 50}}>
@@ -1856,13 +1917,7 @@ export default function MenuEditor() {
                       ))}
                     </div>
                     <div style={{display: 'flex', gap: 8}}>
-                      <select value={imageLabel} onChange={(e) => setImageLabel(e.target.value)} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}}>
-                        <option>Grilled</option>
-                        <option>Blackened</option>
-                        <option>Fried</option>
-                        <option>Steamed</option>
-                        <option>Baked</option>
-                      </select>
+                      <input type="text" placeholder="Photo label (optional)" value={imageLabel} onChange={(e) => setImageLabel(e.target.value)} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
                       <button onClick={editingItem ? () => { updateFlatItem('dailyFeatures'); setExpandedAddForm(null); } : () => { addFlatItem('dailyFeatures'); setExpandedAddForm(null); }} style={{flex: 1, padding: 10, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600}}>
                         {editingItem ? 'Update' : 'Save'}
                       </button>
@@ -2084,6 +2139,106 @@ export default function MenuEditor() {
                     )}
                   </div>
                 </div>
+              </>
+            )}
+
+            {/* AVAILABILITY / "SPOTS REMAINING" TAB — charters, rentals, tours, lodging */}
+            {tab === 'availability' && (
+              <>
+                <h2>Availability</h2>
+                <p style={{fontSize: 13, color: '#94a3b8', marginTop: -6, marginBottom: 16}}>Post real-time spots remaining for a trip/slot — e.g. "2 spots left on the 4pm charter." Updates immediately, no Save button needed.</p>
+
+                <div style={{background: '#1e293b', padding: 16, borderRadius: 8, marginBottom: 16}}>
+                  <h4 style={{margin: '0 0 12px 0'}}>Add a date/slot</h4>
+                  <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10}}>
+                    <input type="date" value={newAvailability.availability_date} onChange={(e) => setNewAvailability({...newAvailability, availability_date: e.target.value})} style={{padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
+                    <input type="time" placeholder="Start time" value={newAvailability.time_slot} onChange={(e) => setNewAvailability({...newAvailability, time_slot: e.target.value})} style={{padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
+                    <input type="number" placeholder="Total capacity" value={newAvailability.total_capacity} onChange={(e) => setNewAvailability({...newAvailability, total_capacity: e.target.value})} style={{padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
+                    <input type="number" placeholder="Already booked" value={newAvailability.booked_count} onChange={(e) => setNewAvailability({...newAvailability, booked_count: e.target.value})} style={{padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
+                    <input type="text" placeholder="Deal label (optional, e.g. Last Minute)" value={newAvailability.last_minute_deal} onChange={(e) => setNewAvailability({...newAvailability, last_minute_deal: e.target.value})} style={{padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
+                    <input type="text" placeholder="Deal price (optional)" value={newAvailability.last_minute_price} onChange={(e) => setNewAvailability({...newAvailability, last_minute_price: e.target.value})} style={{padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
+                  </div>
+                  <button onClick={async () => {
+                    if (!newAvailability.availability_date) { alert('Pick a date'); return; }
+                    try {
+                      const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/availability`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-menu-token': token },
+                        body: JSON.stringify({
+                          availability_date: newAvailability.availability_date,
+                          time_slot: newAvailability.time_slot || null,
+                          total_capacity: newAvailability.total_capacity ? parseInt(newAvailability.total_capacity) : null,
+                          booked_count: newAvailability.booked_count ? parseInt(newAvailability.booked_count) : 0,
+                          last_minute_deal: newAvailability.last_minute_deal || null,
+                          last_minute_price: newAvailability.last_minute_price || null,
+                        })
+                      });
+                      const row = await res.json();
+                      if (res.ok) {
+                        setAvailability(prev => [...prev, row].sort((a, b) => (a.availability_date + (a.time_slot||'')).localeCompare(b.availability_date + (b.time_slot||''))));
+                        setNewAvailability({ availability_date: '', time_slot: '', end_time: '', total_capacity: '', booked_count: '0', last_minute_deal: '', last_minute_price: '' });
+                      } else alert(row.error || 'Failed to add');
+                    } catch (err) { alert('Error: ' + err.message); }
+                  }} style={{width: '100%', padding: 10, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600}}>+ Post Availability</button>
+                </div>
+
+                {availability.length === 0 && <p style={{color: '#64748b', textAlign: 'center', marginTop: 20}}>Nothing posted yet</p>}
+                {availability.map(a => (
+                  <div key={a.id} style={{background: '#1e293b', padding: 12, borderRadius: 6, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10}}>
+                    <div>
+                      <strong>{a.availability_date}{a.time_slot ? ` · ${a.time_slot}` : ''}</strong>
+                      <div style={{fontSize: 13, color: a.remaining_spots === 0 ? '#f87171' : '#4ade80', fontWeight: 700}}>
+                        {a.remaining_spots == null ? (a.status || 'available') : a.remaining_spots === 0 ? 'Sold out' : `${a.remaining_spots} of ${a.total_capacity} spots left`}
+                      </div>
+                      {a.last_minute_deal && <div style={{fontSize: 12, color: '#f0a500'}}>{a.last_minute_deal}{a.last_minute_price ? ` — $${a.last_minute_price}` : ''}</div>}
+                    </div>
+                    <div style={{display: 'flex', gap: 6}}>
+                      <button onClick={async () => {
+                        const nextBooked = (a.booked_count || 0) + 1;
+                        try {
+                          const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/availability/${a.id}`, {
+                            method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-menu-token': token },
+                            body: JSON.stringify({ booked_count: nextBooked })
+                          });
+                          const row = await res.json();
+                          if (res.ok) setAvailability(prev => prev.map(x => x.id === a.id ? row : x));
+                        } catch {}
+                      }} style={{padding: '6px 10px', background: '#334155', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>-1 spot</button>
+                      <button onClick={async () => {
+                        if (!confirm('Delete this availability post?')) return;
+                        try {
+                          await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/availability/${a.id}`, { method: 'DELETE', headers: { 'x-menu-token': token } });
+                          setAvailability(prev => prev.filter(x => x.id !== a.id));
+                        } catch {}
+                      }} style={{padding: '6px 10px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12}}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* FUEL / PRICING TAB — marinas */}
+            {tab === 'fuel' && (
+              <>
+                <h2>Fuel Prices</h2>
+                <p style={{fontSize: 13, color: '#94a3b8', marginTop: -6, marginBottom: 16}}>Update prices at the dock — saves immediately.</p>
+                {fuelOptions.map((f, idx) => (
+                  <div key={idx} style={{display: 'flex', gap: 8, marginBottom: 10}}>
+                    <input type="text" placeholder="Fuel type (e.g. Diesel)" value={f.name || ''} onChange={(e) => setFuelOptions(prev => prev.map((x, i) => i === idx ? {...x, name: e.target.value} : x))} style={{flex: 2, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
+                    <input type="text" placeholder="Price" value={f.price || ''} onChange={(e) => setFuelOptions(prev => prev.map((x, i) => i === idx ? {...x, price: e.target.value} : x))} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
+                    <input type="text" placeholder="Unit (e.g. /gal)" value={f.unit || ''} onChange={(e) => setFuelOptions(prev => prev.map((x, i) => i === idx ? {...x, unit: e.target.value} : x))} style={{flex: 1, padding: 10, background: '#0f172a', color: '#f1f5f9', border: '1px solid rgba(255,255,255,.15)', borderRadius: 6}} />
+                    <button onClick={() => setFuelOptions(prev => prev.filter((_, i) => i !== idx))} style={{padding: '0 12px', background: '#dc2626', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer'}}>✕</button>
+                  </div>
+                ))}
+                <button onClick={() => setFuelOptions(prev => [...prev, { name: '', price: '', unit: '/gal' }])} style={{width: '100%', padding: 10, background: '#1e293b', color: '#f1f5f9', border: '1px dashed rgba(255,255,255,.3)', borderRadius: 6, cursor: 'pointer', marginBottom: 16}}>+ Add fuel type</button>
+                <button onClick={async () => {
+                  try {
+                    const res = await fetch(`${API_URL}/api/menu-editor/${encodeURIComponent(slug)}/fuel`, {
+                      method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-menu-token': token },
+                      body: JSON.stringify({ fuel_options: fuelOptions })
+                    });
+                    if (res.ok) alert('Fuel prices updated'); else alert('Failed to save');
+                  } catch (err) { alert('Error: ' + err.message); }
+                }} style={{width: '100%', padding: 12, background: '#0b7a75', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700}}>💾 Save Fuel Prices</button>
               </>
             )}
 
